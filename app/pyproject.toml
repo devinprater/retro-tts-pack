@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speechd-retro-tts"
+version = "0.1.0"
+description = "Portable retro speech engines for Speech Dispatcher and Orca"
+requires-python = ">=3.10"
+dependencies = ["unicorn>=2.1,<3"]
+
+[project.scripts]
+retro-tts = "retro_tts.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"retro_tts.engines.smoothtalker" = ["engine.bin"]
+"retro_tts.engines.monologue" = ["bin/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

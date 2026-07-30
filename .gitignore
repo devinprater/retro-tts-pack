@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.wav
+*.log
+
+# Commercial engine assets are local inputs, never repository content.
+assets/**/*
+!assets/**/.keep
+!assets/monologue/argclean.json
+!assets/monologue/ds_sensitive.json
