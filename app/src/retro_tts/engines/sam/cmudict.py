@@ -1,4 +1,5 @@
 import os
+import warnings
 ARPABET_TO_SAM = {
     'AA': 'AA',   # odd
     'AE': 'AE',   # at
@@ -57,6 +58,10 @@ def load_cmudict():
     _cmudict = {}
     dict_path = _get_dict_path()
     if not os.path.exists(dict_path):
+        warnings.warn(
+            f"CMU dictionary not found at {dict_path}; "
+            "falling back to rule-based phoneme conversion for all words."
+        )
         return _cmudict
     try:
         with open(dict_path, 'r', encoding='utf-8') as f:
@@ -73,8 +78,9 @@ def load_cmudict():
                 phonemes = parts[1:]
                 if word not in _cmudict:
                     _cmudict[word] = phonemes
-    except Exception:
-        pass
+    except OSError as exc:
+        warnings.warn(f"Failed to read CMU dictionary at {dict_path}: {exc}")
+        _cmudict = {}
     return _cmudict
 def arpabet_to_sam(phonemes):
     """
