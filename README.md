@@ -2,7 +2,7 @@
 
 Project repository: <https://github.com/devinprater/retro-tts-pack>
 
-This x86_64 Linux pack provides nine retro speech synthesizer adapters:
+This x86_64 Linux pack provides ten retro speech synthesizer adapters:
 
 - SAM
 - Atari ST Speech
@@ -13,10 +13,23 @@ This x86_64 Linux pack provides nine retro speech synthesizer adapters:
 - BeSTSpeech / Keynote Gold
 - SoftVoice
 - Amiga Narrator
+- WinTalker / MacInTalk
 
 The persistent renderer keeps emulators and engine state warm. Audio playback
 uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
-emulator is running. Wine is not required.
+emulator is running. Wine is required only for WinTalker.
+
+## What's new in 0.2.0
+
+- WinTalker joins the pack with a persistent Wine host for responsive Orca use.
+- Amiga Narrator no longer has the secondary drone/distortion, streams sooner,
+  stops promptly, and does not overlap interrupted speech.
+- BeSTSpeech now follows Orca pitch changes and raises typed capital letters.
+- Apostrophes in contractions are preserved, with shared normalization for
+  typographic quotes, dashes, ellipses, and nonbreaking spaces.
+- SmoothTalker and Monolog reuse initialized engines and cancel more quickly.
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
 ## Quick installation
 
@@ -27,6 +40,7 @@ Requirements:
 - Speech Dispatcher with the `sd_generic` module
 - PipeWire's `pw-play` command
 - a working per-user systemd manager, recommended but not mandatory
+- Wine, only when using WinTalker
 
 The included native binaries target a recent glibc-based Linux distribution.
 If the loader reports a missing `GLIBC` or `GLIBCXX` version, rebuild the
@@ -71,11 +85,12 @@ put them in the installed copy and run the installer again.
 | BeSTSpeech | `assets/bestspeech/b32_tts.dll` |
 | SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll` |
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
+| WinTalker | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
 
 These files originated in commercial products or add-ons. This distribution
 does not grant permission to copy them.
 
-The downloader intentionally does not fetch SoftVoice or the remaining
+The downloader intentionally does not fetch SoftVoice, WinTalker, or the remaining
 commercial firmware from generic DLL sites or archival disk images. Public
 availability alone does not establish redistribution permission, and those
 sources cannot be authenticated as project-published releases.
@@ -132,6 +147,9 @@ retro-tts --persistent --engine stspeech --output test.wav --text "Test."
 
 If a proprietary engine reports a missing path, verify spelling and filename
 case under `~/.local/share/retro-tts-pack/assets`, then rerun `install.sh`.
+
+WinTalker additionally requires a working 64-bit Wine installation. Its small
+host can be rebuilt with `make -C native/wintalker` when `winegcc` is installed.
 
 ## Manual Speech Dispatcher setup
 

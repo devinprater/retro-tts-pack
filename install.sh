@@ -59,7 +59,7 @@ mkdir -p "$INSTALL_DIR" "$USER_BIN" "$MODULE_DIR" "$SYSTEMD_DIR"
 root_real=$(readlink -f "$ROOT")
 install_real=$(readlink -f "$INSTALL_DIR")
 if [ "$root_real" != "$install_real" ]; then
-    for item in app bin config lib licenses vendor README.md VERSION download-assets.py; do
+    for item in app bin config lib licenses vendor README.md CHANGELOG.md VERSION download-assets.py; do
         [ ! -e "$ROOT/$item" ] || cp -a "$ROOT/$item" "$INSTALL_DIR/"
     done
     mkdir -p "$INSTALL_DIR/assets"
@@ -103,6 +103,11 @@ Environment=RETRO_TTS_AMIGA_TRANSLATOR_LIBRARY=$INSTALL_DIR/assets/amiganarrator
 Environment=RETRO_TTS_AMIGA_CMU_DICT=$INSTALL_DIR/assets/amiganarrator/cmudict.txt
 Environment=RETRO_TTS_SMOOTHTALKER_IMAGE=$INSTALL_DIR/assets/smoothtalker/engine.bin
 Environment=RETRO_TTS_MONOLOGUE_BIN=$INSTALL_DIR/assets/monologue
+Environment=RETRO_TTS_WINTALKER_CLI=$INSTALL_DIR/bin/wintalker_cli.exe
+Environment=RETRO_TTS_WINTALKER_DLL=$INSTALL_DIR/assets/wintalker/WinTalker.dll
+Environment=RETRO_TTS_WINTALKER_LEX=$INSTALL_DIR/assets/wintalker/English.lex
+KillMode=mixed
+TimeoutStopSec=3
 
 [Install]
 WantedBy=default.target
@@ -162,6 +167,10 @@ if has_all "$ASSETS/amiganarrator/narrator.device" &&
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then
     available_modules="$available_modules amiganarrator"
 else missing_modules="$missing_modules amiganarrator"; fi
+if has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
+   command -v wine >/dev/null 2>&1; then
+    available_modules="$available_modules wintalker"
+else missing_modules="$missing_modules wintalker"; fi
 
 for module in $available_modules; do
     source="$INSTALL_DIR/config/modules/$module-generic.conf"

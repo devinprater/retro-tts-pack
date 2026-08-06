@@ -58,7 +58,7 @@ def _translate(text: str, dictionary_path: str) -> str:
         if phonemes:
             result.append("".join(_narrator_phoneme(item) for item in phonemes))
     if not result:
-        raise RuntimeError("CMUdict could not translate any input words")
+        return ""
     return " ".join(result) + "."
 
 
@@ -78,24 +78,26 @@ def _translate_with_library(text: str, executable: str, library: str) -> str | N
 
 
 def _decode_audio(data: bytes) -> bytes:
-    """Widen Narrator's S8 output and soften legacy audio-buffer seams."""
+    """Widen Narrator's native signed 8-bit output to signed 16-bit PCM."""
     signed = [sample if sample < 128 else sample - 256 for sample in data]
-    # narrator.device v25 writes 161-byte legacy IOAudio buffers. The host
-    # concatenates them, but their endpoints are not phase-continuous as real
-    # Paula playback was. Fade the boundary correction over eight samples to
-    # remove the resulting 138 Hz buzz/click without filtering the voice.
-    block_size = 161
-    fade = 8
-    for boundary in range(block_size, len(signed), block_size):
-        correction = signed[boundary - 1] - signed[boundary]
-        for offset in range(min(fade, len(signed) - boundary)):
-            signed[boundary + offset] += round(
-                correction * (fade - offset) / fade
-            )
     return struct.pack(
         f"<{len(signed)}h",
         *(max(-128, min(127, sample)) << 8 for sample in signed),
     )
+
+
+def _native_rate(rate: int) -> int:
+    value = max(0, min(100, rate))
+    if value <= 50:
+        return 40 + round(value * 110 / 50)
+    return 150 + round((value - 50) * 250 / 50)
+
+
+def _native_pitch(pitch: int) -> int:
+    value = max(0, min(100, pitch))
+    if value <= 50:
+        return 65 + round(value * 45 / 50)
+    return 110 + round((value - 50) * 210 / 50)
 
 
 def _prepare(text: str, rate: int, pitch: int) -> tuple[str, str, int, int]:
@@ -127,15 +129,7 @@ def _prepare(text: str, rate: int, pitch: int) -> tuple[str, str, int, int]:
             "RETRO_TTS_AMIGA_CMU_DICT as a fallback"
         )
 
-    rate = max(0, min(100, rate))
-    # Classic Narrator's rate value is much faster in practice than its
-    # nominal WPM label suggests. Keep Orca's midpoint comfortably readable.
-    if rate <= 50:
-        native_rate = 40 + round(rate * 40 / 50)
-    else:
-        native_rate = 80 + round((rate - 50) * 170 / 50)
-    native_pitch = 65 + round(max(0, min(100, pitch)) * 2.55)
-    return executable, phonetic, native_rate, native_pitch
+    return executable, phonetic, _native_rate(rate), _native_pitch(pitch)
 
 
 def stream_pcm(
@@ -145,6 +139,8 @@ def stream_pcm(
     on_audio: Callable[[bytes], bool],
 ) -> None:
     executable, phonetic, native_rate, native_pitch = _prepare(text, rate, pitch)
+    if not phonetic:
+        return
     device = os.environ["RETRO_TTS_AMIGA_DEVICE"]
     process = subprocess.Popen(
         [
@@ -155,20 +151,16 @@ def stream_pcm(
         stderr=subprocess.DEVNULL,
     )
     assert process.stdout is not None
-    previous: int | None = None
     try:
         while True:
-            block = process.stdout.read(161)
+            # BufferedReader.read(n) waits to fill n bytes. Early
+            # narrator.device versions emit 32-byte audio buffers, so a 4096
+            # byte read delayed onset until 128 buffers had accumulated.
+            # os.read returns the audio currently available from the pipe.
+            block = os.read(process.stdout.fileno(), 512)
             if not block:
                 break
             signed = [sample if sample < 128 else sample - 256 for sample in block]
-            if previous is not None and signed:
-                correction = previous - signed[0]
-                fade = min(8, len(signed))
-                for offset in range(fade):
-                    signed[offset] += round(correction * (fade - offset) / fade)
-            if signed:
-                previous = signed[-1]
             pcm = struct.pack(
                 f"<{len(signed)}h",
                 *(max(-128, min(127, sample)) << 8 for sample in signed),

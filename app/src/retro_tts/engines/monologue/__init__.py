@@ -4,6 +4,7 @@ import io
 import os
 import threading
 import wave
+from collections.abc import Callable
 from pathlib import Path
 
 from . import core
@@ -37,13 +38,15 @@ def text_to_wav(
     pitch: int = 5,
     volume: int = 9,
     voice: str = core.DEFAULT_VOICE,
+    *,
+    cancelled: Callable[[], bool] | None = None,
 ) -> bytes:
     pcm = bytearray()
     with _synthesis_lock:
         engine = _get_engine()
         engine.set_voice(voice)
         engine.configure(volume=volume, pitch=pitch, rate=rate)
-        engine.speak(text, on_block=pcm.extend)
+        engine.speak(text, should_cancel=cancelled, on_block=pcm.extend)
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setnchannels(core.CHANNELS)

@@ -14,6 +14,10 @@ that the BeSTSpeech wrapper and Prose 2000 projects publish in their own GitHub
 releases. Users remain responsible for complying with applicable upstream
 terms.
 
+WinTalker support includes only the open integration host. `WinTalker.dll`,
+`English.lex`, and the MacInTalk voice data must be supplied separately by the
+user and are not downloaded or redistributed by this project.
+
 Important upstream projects include:
 
 - <https://github.com/samtupy/b32tts_wrapper>

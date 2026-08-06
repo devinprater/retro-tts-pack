@@ -12,11 +12,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+from .text import normalize_text
+
 def _percent(value: int) -> int:
     return max(0, min(100, value))
 
 
 def _render(engine: str, text: str, rate: int, pitch: int) -> bytes:
+    text = normalize_text(text)
     rate = _percent(rate)
     pitch = _percent(pitch)
     if engine == "sam":
@@ -59,6 +62,9 @@ def _render(engine: str, text: str, rate: int, pitch: int) -> bytes:
     elif engine == "softvoice":
         from .engines.softvoice import text_to_wav as softvoice_to_wav
         wav = softvoice_to_wav(text)
+    elif engine == "wintalker":
+        from .engines.wintalker import text_to_wav as wintalker_to_wav
+        wav = wintalker_to_wav(text, rate=rate, pitch=pitch)
     else:
         raise ValueError(f"unknown engine: {engine}")
     if not wav:
@@ -144,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
             "doubletalkpc",
             "bestspeech", "softvoice",
             "amiganarrator",
+            "wintalker",
         ),
         required=True,
     )
@@ -160,7 +167,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-    text = args.text if args.text is not None else sys.stdin.read()
+    text = normalize_text(args.text if args.text is not None else sys.stdin.read())
     if not text.strip():
         return 0
     if args.persistent:

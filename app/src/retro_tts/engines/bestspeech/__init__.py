@@ -18,6 +18,21 @@ _engine: int | None = None
 _lock = threading.Lock()
 
 
+def _native_pitch(value: int) -> int:
+    """Center the live Speech Dispatcher value on Fred's native 80 Hz."""
+    value = max(0, min(100, value))
+    if value <= 50:
+        return 40 + round(value * 40 / 50)
+    return 80 + round((value - 50) * 80 / 50)
+
+
+def _character_pitch(text: str, pitch: int) -> int:
+    """Ensure Orca character echo distinguishes an uppercase letter."""
+    if len(text.strip()) == 1 and text.strip().isalpha() and text.strip().isupper():
+        return min(100, pitch + 20)
+    return pitch
+
+
 def _get_engine() -> tuple[ctypes.CDLL, int]:
     global _library, _engine
     if _library is not None and _engine is not None:
@@ -53,7 +68,10 @@ def text_to_wav(text: str, rate: int = 50, pitch: int = 50) -> bytes:
     # This engine uses an inverted native range: 200 is slowest and -90
     # fastest. The previous -20..20 mapping covered very little of it.
     native_rate = round(200 - max(0, min(100, rate)) * 2.9)
-    payload = f"~r{native_rate}]{text} ~|".encode("cp1252", "replace")
+    effective_pitch = _character_pitch(text, pitch)
+    payload = (
+        f"~r{native_rate}]~f{_native_pitch(effective_pitch)}]{text} ~|"
+    ).encode("cp1252", "replace")
     with _lock:
         lib, engine = _get_engine()
         result = lib.bst_speak(engine, payload, receive, None)
