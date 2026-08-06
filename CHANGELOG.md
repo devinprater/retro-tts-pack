@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.2 - 2026-08-06
+
+- Prevented BeSTSpeech from disappearing during long Orca sessions by
+  recreating and retrying its emulator after the emulated heap is exhausted.
+- Removed invalid empty `GenericStripPunctChars` directives that Speech
+  Dispatcher 0.12.1 rejected while loading the generic modules.
+
 ## 0.2.1 - 2026-08-06
 
 - Added an aarch64 Linux release for Raspberry Pi Compute Module 5 and similar

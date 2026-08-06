@@ -58,6 +58,15 @@ def _get_engine() -> tuple[ctypes.CDLL, int]:
     return lib, engine
 
 
+def _reset_engine() -> None:
+    """Discard an exhausted emulator instance so the next request starts fresh."""
+    global _library, _engine
+    if _library is not None and _engine is not None:
+        _library.bst_destroy(_engine)
+    _library = None
+    _engine = None
+
+
 def text_to_wav(text: str, rate: int = 50, pitch: int = 50) -> bytes:
     pcm = bytearray()
 
@@ -75,6 +84,15 @@ def text_to_wav(text: str, rate: int = 50, pitch: int = 50) -> bytes:
     with _lock:
         lib, engine = _get_engine()
         result = lib.bst_speak(engine, payload, receive, None)
+        # The native shim uses a bump allocator for the emulated Windows heap.
+        # A screen reader can eventually exhaust it. Recreate the inexpensive
+        # emulator instance and retry instead of killing the Speech Dispatcher
+        # output module.
+        if result == -1:
+            pcm.clear()
+            _reset_engine()
+            lib, engine = _get_engine()
+            result = lib.bst_speak(engine, payload, receive, None)
     if result or not pcm:
         raise RuntimeError(f"BestSpeech synthesis failed ({result})")
     output = io.BytesIO()
