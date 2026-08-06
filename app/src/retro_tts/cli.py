@@ -13,6 +13,7 @@ import tempfile
 from pathlib import Path
 
 from .text import normalize_text
+from .engines.audio import shorten_wav_pauses
 
 def _percent(value: int) -> int:
     return max(0, min(100, value))
@@ -69,7 +70,7 @@ def _render(engine: str, text: str, rate: int, pitch: int) -> bytes:
         raise ValueError(f"unknown engine: {engine}")
     if not wav:
         raise RuntimeError(f"{engine} produced no audio")
-    return wav
+    return wav if engine == "wintalker" else shorten_wav_pauses(wav)
 
 
 def _play(wav: bytes) -> int:

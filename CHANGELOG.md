@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1 - 2026-08-06
+
+- Added an aarch64 Linux release for Raspberry Pi Compute Module 5 and similar
+  systems, covering all engines except the x86_64-only WinTalker DLL host.
+- Shortened sustained pauses across all engine output for more responsive Orca
+  navigation while retaining brief boundaries between words and phrases.
+- Enabled WinTalker's native 30 percent pause setting on x86_64.
+- Made the installer architecture-aware and prevented an unusable WinTalker
+  module from being registered on ARM64.
+
 ## 0.2.0 - 2026-08-06
 
 - Added WinTalker, using its 64-bit rendering DLL and MacInTalk voices through

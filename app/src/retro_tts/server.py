@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 
 from .cli import _receive_exact, _render
+from .engines.audio import PCM16PauseShortener, shorten_wav_pauses
 
 
 _amiga_state_lock = threading.Lock()
@@ -100,13 +101,15 @@ def _stream_amiga(
             except BrokenPipeError:
                 return False
 
+        shortener = PCM16PauseShortener(22_200, send_audio)
         try:
             stream_pcm(
                 str(request["text"]),
                 int(request.get("rate", 50)),
                 int(request.get("pitch", 50)),
-                send_audio,
+                shortener.feed,
             )
+            shortener.finish()
             playback.stdin.close()
             playback.wait(timeout=10)
         finally:
@@ -161,6 +164,7 @@ def _serve(connection: socket.socket) -> None:
                     pitch=round(pitch * 0.09),
                     cancelled=lambda: not _connected(connection),
                 )
+                wav = shorten_wav_pauses(wav)
             else:
                 wav = _render(
                     request["engine"],

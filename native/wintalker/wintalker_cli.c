@@ -20,6 +20,7 @@ struct api {
     voice_fn use_voice;
     set_fn set_rate;
     set_fn set_pitch;
+    set_fn set_pause;
     size_fn buffer_size;
     speak_fn speak;
     render_fn render;
@@ -58,6 +59,7 @@ static int initialize(struct api *api, const char *dll_path, const char *lex_pat
     api->use_voice = LOAD(api->dll, UseVoice, voice_fn);
     api->set_rate = LOAD(api->dll, SetSpeechRate, set_fn);
     api->set_pitch = LOAD(api->dll, SetSpeechPitch, set_fn);
+    api->set_pause = LOAD(api->dll, SetPausePercent, set_fn);
     api->buffer_size = LOAD(api->dll, GetMinBufferSize, size_fn);
     api->speak = LOAD(api->dll, SpeakBufferRender, speak_fn);
     api->render = LOAD(api->dll, RenderNext, render_fn);
@@ -67,6 +69,7 @@ static int initialize(struct api *api, const char *dll_path, const char *lex_pat
     set_lex(lex_path);
     if (open_render(&api->voice) || !api->voice) return 0;
     api->use_voice(api->voice, 0);
+    if (api->set_pause) api->set_pause(api->voice, 30);
     return 1;
 }
 

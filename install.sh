@@ -28,8 +28,11 @@ for argument in "$@"; do
     esac
 done
 
-[ "$(uname -m)" = x86_64 ] ||
-    die "this binary pack currently supports x86_64 Linux only"
+architecture=$(uname -m)
+case "$architecture" in
+    x86_64|aarch64) ;;
+    *) die "this binary pack supports x86_64 and aarch64 Linux only" ;;
+esac
 command -v python3 >/dev/null 2>&1 || die "python3 is required"
 python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 10))' ||
     die "Python 3.10 or newer is required"
@@ -167,7 +170,8 @@ if has_all "$ASSETS/amiganarrator/narrator.device" &&
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then
     available_modules="$available_modules amiganarrator"
 else missing_modules="$missing_modules amiganarrator"; fi
-if has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
+if [ "$architecture" = x86_64 ] &&
+   has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
    command -v wine >/dev/null 2>&1; then
     available_modules="$available_modules wintalker"
 else missing_modules="$missing_modules wintalker"; fi
