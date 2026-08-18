@@ -20,37 +20,13 @@ _amiga_cancel: threading.Event | None = None
 
 
 def _preload() -> None:
-    """Pay one-time import/engine startup costs when the service starts."""
-    from .engines import stspeech  # noqa: F401
+    """Keep service startup cheap; engines remain resident after first use.
 
-    loaders = []
-    try:
-        from .engines.monologue import _get_engine
-        loaders.append(_get_engine)
-    except Exception:
-        pass
-    try:
-        from .engines.bestspeech import _get_engine
-        loaders.append(_get_engine)
-    except Exception:
-        pass
-    try:
-        from .engines.softvoice import _get_engine
-        loaders.append(_get_engine)
-    except Exception:
-        pass
-    try:
-        from .engines.wintalker import _get_host
-        loaders.append(_get_host)
-    except Exception:
-        pass
-    for load in loaders:
-        try:
-            load()
-        except Exception:
-            # Optional engines report their actionable error when selected;
-            # one missing asset must not prevent the others from warming up.
-            pass
+    Preloading every optional engine retained several emulators and Wine hosts
+    even when the user selected only one synthesizer.  Lazy loading preserves
+    the persistent renderer's benefit for subsequent utterances without the
+    large idle-memory cost.
+    """
 
 
 def _connected(connection: socket.socket) -> bool:
@@ -142,13 +118,17 @@ def _serve(connection: socket.socket) -> None:
             if request.get("play") and request["engine"] == "amiganarrator":
                 _stream_amiga(connection, request, _new_amiga_request())
                 wav = b""
-            elif request["engine"] == "wintalker":
-                from .engines.wintalker import text_to_wav
+            elif request["engine"] in ("wintalker", "leopardspeech"):
+                if request["engine"] == "wintalker":
+                    from .engines.wintalker import text_to_wav
+                else:
+                    from .engines.leopardspeech import text_to_wav
 
                 wav = text_to_wav(
                     str(request["text"]),
                     int(request.get("rate", 50)),
                     int(request.get("pitch", 50)),
+                    **({"voice": request.get("voice")} if request["engine"] == "leopardspeech" else {}),
                     cancelled=lambda: not _connected(connection),
                 )
             elif request["engine"] in ("smoothtalker", "monologue"):
@@ -171,6 +151,7 @@ def _serve(connection: socket.socket) -> None:
                     request["text"],
                     int(request.get("rate", 50)),
                     int(request.get("pitch", 50)),
+                    request.get("voice"),
                 )
             response = struct.pack("!BI", 0, len(wav)) + wav
         except Exception as error:

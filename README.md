@@ -2,7 +2,7 @@
 
 Project repository: <https://github.com/devinprater/retro-tts-pack>
 
-This Linux pack provides ten retro speech synthesizer adapters on x86_64 and
+This Linux pack provides eleven retro speech synthesizer adapters on x86_64 and
 nine on ARM64 (aarch64):
 
 - SAM
@@ -15,17 +15,17 @@ nine on ARM64 (aarch64):
 - SoftVoice
 - Amiga Narrator
 - WinTalker / MacInTalk
+- Leopard Speech / Mac OS X 10.5 MacinTalk (including Alex)
 
 The persistent renderer keeps emulators and engine state warm. Audio playback
 uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
-emulator is running. Wine is required only for WinTalker.
+emulator is running. Wine is required only for WinTalker and Leopard Speech.
 
-## What's new in 0.2.2
+## What's new in 0.3.0
 
-- BeSTSpeech now recovers automatically when its emulated heap fills during a
-  long Orca session instead of disappearing and causing a fallback to eSpeak.
-- Generic module configurations no longer contain an empty punctuation option
-  rejected by Speech Dispatcher 0.12.1.
+- Leopard Speech adds the Mac OS X 10.5 MacinTalk voices through Wine.
+- Alex is the default voice and now decodes correctly through Wine's
+  GStreamer Media Foundation bridge, as does Vicki.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
@@ -38,7 +38,7 @@ Requirements:
 - Speech Dispatcher with the `sd_generic` module
 - PipeWire's `pw-play` command
 - a working per-user systemd manager, recommended but not mandatory
-- Wine, only when using WinTalker on x86_64
+- Wine, only when using WinTalker or Leopard Speech on x86_64
 
 The included native binaries target a recent glibc-based Linux distribution.
 If the loader reports a missing `GLIBC` or `GLIBCXX` version, rebuild the
@@ -84,11 +84,12 @@ put them in the installed copy and run the installer again.
 | SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll` |
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
 | WinTalker (x86_64 only) | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
+| Leopard Speech (x86_64 only) | Extract the separately supplied archive so that `assets/leopardspeech/leopardspeech-data/Speech/Voices` exists, and install Wine |
 
 These files originated in commercial products or add-ons. This distribution
 does not grant permission to copy them.
 
-The downloader intentionally does not fetch SoftVoice, WinTalker, or the remaining
+The downloader intentionally does not fetch SoftVoice, WinTalker, Leopard Speech, or the remaining
 commercial firmware from generic DLL sites or archival disk images. Public
 availability alone does not establish redistribution permission, and those
 sources cannot be authenticated as project-published releases.
@@ -129,6 +130,7 @@ Test a module:
 ```sh
 spd-say -w -o sam "SAM is working."
 spd-say -w -o bestspeech "BeSTSpeech is working."
+spd-say -w -o leopardspeech "Alex is working."
 ```
 
 List configured modules:
@@ -146,9 +148,10 @@ retro-tts --persistent --engine stspeech --output test.wav --text "Test."
 If a proprietary engine reports a missing path, verify spelling and filename
 case under `~/.local/share/retro-tts-pack/assets`, then rerun `install.sh`.
 
-WinTalker additionally requires a working x86_64 Wine installation. Its DLL
-cannot be loaded by standard ARM64 Wine, so the ARM64 installer deliberately
-does not register it. Its small x86_64 host can be rebuilt with
+WinTalker and Leopard Speech additionally require a working x86_64 Wine
+installation. WinTalker's DLL cannot be loaded by standard ARM64 Wine, so the
+ARM64 installer deliberately does not register either Wine-backed engine. Its
+small x86_64 host can be rebuilt with
 `make -C native/wintalker` when `winegcc` is installed.
 
 ## Raspberry Pi notes

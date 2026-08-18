@@ -109,6 +109,9 @@ Environment=RETRO_TTS_MONOLOGUE_BIN=$INSTALL_DIR/assets/monologue
 Environment=RETRO_TTS_WINTALKER_CLI=$INSTALL_DIR/bin/wintalker_cli.exe
 Environment=RETRO_TTS_WINTALKER_DLL=$INSTALL_DIR/assets/wintalker/WinTalker.dll
 Environment=RETRO_TTS_WINTALKER_LEX=$INSTALL_DIR/assets/wintalker/English.lex
+Environment=RETRO_TTS_LEOPARD_HOST=$INSTALL_DIR/bin/leopard_host.exe
+Environment=RETRO_TTS_LEOPARD_TREE=$INSTALL_DIR/assets/leopardspeech/leopardspeech-data
+Environment=RETRO_TTS_LEOPARD_VOICE=Alex
 KillMode=mixed
 TimeoutStopSec=3
 
@@ -175,6 +178,14 @@ if [ "$architecture" = x86_64 ] &&
    command -v wine >/dev/null 2>&1; then
     available_modules="$available_modules wintalker"
 else missing_modules="$missing_modules wintalker"; fi
+if [ "$architecture" = x86_64 ] &&
+   has_all \
+    "$ASSETS/leopardspeech/leopardspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
+    "$ASSETS/leopardspeech/leopardspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" &&
+   [ -d "$ASSETS/leopardspeech/leopardspeech-data/Speech/Voices" ] &&
+   command -v wine >/dev/null 2>&1; then
+    available_modules="$available_modules leopardspeech"
+else missing_modules="$missing_modules leopardspeech"; fi
 
 for module in $available_modules; do
     source="$INSTALL_DIR/config/modules/$module-generic.conf"

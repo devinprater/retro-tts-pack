@@ -19,7 +19,9 @@ def _percent(value: int) -> int:
     return max(0, min(100, value))
 
 
-def _render(engine: str, text: str, rate: int, pitch: int) -> bytes:
+def _render(
+    engine: str, text: str, rate: int, pitch: int, voice: str | None = None
+) -> bytes:
     text = normalize_text(text)
     rate = _percent(rate)
     pitch = _percent(pitch)
@@ -66,11 +68,14 @@ def _render(engine: str, text: str, rate: int, pitch: int) -> bytes:
     elif engine == "wintalker":
         from .engines.wintalker import text_to_wav as wintalker_to_wav
         wav = wintalker_to_wav(text, rate=rate, pitch=pitch)
+    elif engine == "leopardspeech":
+        from .engines.leopardspeech import text_to_wav as leopard_to_wav
+        wav = leopard_to_wav(text, rate=rate, pitch=pitch, voice=voice)
     else:
         raise ValueError(f"unknown engine: {engine}")
     if not wav:
         raise RuntimeError(f"{engine} produced no audio")
-    return wav if engine == "wintalker" else shorten_wav_pauses(wav)
+    return wav if engine in ("wintalker", "leopardspeech") else shorten_wav_pauses(wav)
 
 
 def _play(wav: bytes) -> int:
@@ -111,14 +116,18 @@ def _play(wav: bytes) -> int:
 
 
 def _persistent_render(
-    engine: str, text: str, rate: int, pitch: int, *, play: bool = False
+    engine: str, text: str, rate: int, pitch: int, *,
+    voice: str | None = None, play: bool = False
 ) -> bytes:
     socket_path = os.environ.get(
         "RETRO_TTS_SOCKET",
         str(Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "retro-tts.sock"),
     )
     request = json.dumps(
-        {"engine": engine, "text": text, "rate": rate, "pitch": pitch, "play": play}
+        {
+            "engine": engine, "text": text, "rate": rate, "pitch": pitch,
+            "voice": voice, "play": play,
+        }
     ).encode("utf-8")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
         client.settimeout(60)
@@ -152,11 +161,13 @@ def build_parser() -> argparse.ArgumentParser:
             "bestspeech", "softvoice",
             "amiganarrator",
             "wintalker",
+            "leopardspeech",
         ),
         required=True,
     )
     parser.add_argument("--rate", type=int, default=50, help="rate from 0 through 100")
     parser.add_argument("--pitch", type=int, default=50, help="pitch from 0 through 100")
+    parser.add_argument("--voice", help="engine voice name (for example Alex or Vicki)")
     parser.add_argument("--output", type=Path, help="write a WAV file instead of playing")
     parser.add_argument(
         "--persistent", action="store_true",
@@ -174,12 +185,13 @@ def main() -> int:
     if args.persistent:
         daemon_plays = args.engine == "amiganarrator" and args.output is None
         wav = _persistent_render(
-            args.engine, text, args.rate, args.pitch, play=daemon_plays
+            args.engine, text, args.rate, args.pitch, voice=args.voice,
+            play=daemon_plays,
         )
         if daemon_plays:
             return 0
     else:
-        wav = _render(args.engine, text, args.rate, args.pitch)
+        wav = _render(args.engine, text, args.rate, args.pitch, args.voice)
     if args.output:
         args.output.write_bytes(wav)
         return 0

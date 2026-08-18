@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-08-18
+
+- Added Leopard Speech, bringing Mac OS X 10.5 MacinTalk voices to Speech
+  Dispatcher through Wine.
+- Added working AAC voice decoding under Wine, including Alex and Vicki.
+- Made Alex the default Leopard Speech voice, with rate, pitch, cancellation,
+  and persistent-host support.
+- Prevented rapid Orca word navigation from orphaning Wine host processes and
+  eventually disabling Leopard Speech.
+
 ## 0.2.2 - 2026-08-06
 
 - Prevented BeSTSpeech from disappearing during long Orca sessions by

@@ -18,6 +18,11 @@ WinTalker support includes only the open integration host. `WinTalker.dll`,
 `English.lex`, and the MacInTalk voice data must be supplied separately by the
 user and are not downloaded or redistributed by this project.
 
+Leopard Speech support includes the open integration host from tiger-speech.
+The Mac OS X engine, SpeechDictionary framework, and voice data—including
+Alex—must be supplied separately by the user and are not redistributed by this
+project.
+
 Important upstream projects include:
 
 - <https://github.com/samtupy/b32tts_wrapper>
@@ -26,3 +31,4 @@ Important upstream projects include:
 - <https://github.com/nicodex/AmigaNarrator>
 - <https://github.com/daiverd/rusty_tts>
 - <https://github.com/unicorn-engine/unicorn>
+- <https://github.com/tgeczy/tiger-speech>

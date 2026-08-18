@@ -1,0 +1,14 @@
+diff --git a/src/tiger_host_aac.c b/src/tiger_host_aac.c
+--- a/src/tiger_host_aac.c
++++ b/src/tiger_host_aac.c
+@@ -265,7 +265,12 @@ static int aac_open(void)
+     memset(ud, 0, sizeof ud);
+     ud[2] = 0xfe;
+-    IMFMediaType_SetBlob(mt, &MF_MT_USER_DATA, ud, 12);
++    if (getenv("TIGER_WINE_AAC")) {
++        memcpy(ud + 12, g_sc.asc, g_sc.asclen);
++        IMFMediaType_SetBlob(mt, &MF_MT_USER_DATA, ud, 12 + g_sc.asclen);
++    } else {
++        IMFMediaType_SetBlob(mt, &MF_MT_USER_DATA, ud, 12);
++    }
+     hr = IMFTransform_SetInputType(g_aac, 0, mt, 0);
