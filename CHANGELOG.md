@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 - 2026-08-20
+
+- Added a native 32-bit Linux host for Leopard MacinTalk and Alex, with the
+  existing Wine host retained as an automatic fallback.
+- Streamed native PCM to PipeWire with low-latency, nonblocking playback and
+  prompt cancellation during Orca navigation.
+- Isolated Alex utterances in preloaded one-shot hosts to avoid reusing broken
+  Leopard AudioConverter state while keeping warm response times low.
+- Added a lightweight native Speech Dispatcher client and robust renderer
+  startup, cancellation, playback-queue, and socket-retry handling.
+- Made Leopard Speech survive sustained Orca use without overlapping, dropping,
+  or permanently wedging later utterances.
+- Enabled Speech Dispatcher's user socket during installation to prevent a
+  competing auto-spawned daemon from leaving Orca attached to stale state.
+
 ## 0.3.0 - 2026-08-18
 
 - Added Leopard Speech, bringing Mac OS X 10.5 MacinTalk voices to Speech

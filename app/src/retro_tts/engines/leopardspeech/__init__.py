@@ -3,9 +3,11 @@ from __future__ import annotations
 import atexit
 import os
 import select
+import signal
 import struct
 import subprocess
 import threading
+import time
 import wave
 from collections.abc import Callable
 from io import BytesIO
@@ -13,7 +15,9 @@ from pathlib import Path
 
 
 REQ_MAGIC = 0x54475233  # TGR3
+REQ_MAGIC_STREAM = 0x54475234  # TGR4
 RSP_MAGIC = 0x54475253  # TGRS
+READY_MAGIC = 0x59445254  # TRDY
 SAMPLE_RATE = 22050
 
 _host: subprocess.Popen[bytes] | None = None
@@ -43,6 +47,43 @@ def _wine_path(path: Path, wine: str) -> str:
     if os.name == "nt" or not wine:
         return str(path)
     return "Z:" + str(path).replace("/", "\\")
+
+
+def _binary_kind(path: Path) -> str:
+    with path.open("rb") as executable:
+        magic = executable.read(4)
+    if magic == b"\x7fELF":
+        return "elf"
+    if magic[:2] == b"MZ":
+        return "pe"
+    raise RuntimeError(f"{path} is neither a Linux ELF nor a Windows PE host")
+
+
+def _runner(package_root: Path) -> tuple[Path, str]:
+    backend = os.environ.get("RETRO_TTS_LEOPARD_BACKEND", "auto").lower()
+    if backend not in {"auto", "native", "wine"}:
+        raise RuntimeError("RETRO_TTS_LEOPARD_BACKEND must be auto, native, or wine")
+    override = os.environ.get("RETRO_TTS_LEOPARD_HOST")
+    native = package_root / "native" / "leopardspeech" / "leopard_host"
+    windows = package_root / "native" / "leopardspeech" / "leopard_host.exe"
+    if override:
+        runner = _file("RETRO_TTS_LEOPARD_HOST", Path(override), "a Leopard host")
+    elif backend == "wine":
+        runner = _file("RETRO_TTS_LEOPARD_HOST", windows, "leopard_host.exe")
+    elif native.is_file():
+        runner = native.resolve()
+    elif backend == "native":
+        raise RuntimeError(f"native Leopard host not found at {native}")
+    else:
+        runner = _file("RETRO_TTS_LEOPARD_HOST", windows, "leopard_host.exe")
+    kind = _binary_kind(runner)
+    if backend == "native" and kind != "elf":
+        raise RuntimeError("native backend requires a Linux ELF host")
+    if backend == "wine" and kind != "pe":
+        raise RuntimeError("wine backend requires a Windows PE host")
+    wine = (os.environ.get("RETRO_TTS_WINE", "wine")
+            if kind == "pe" and os.name != "nt" else "")
+    return runner, wine
 
 
 def _stop_host() -> None:
@@ -76,11 +117,7 @@ def _get_host() -> subprocess.Popen[bytes]:
     global _host, _host_key
     tree = _tree()
     package_root = Path(__file__).resolve().parents[4]
-    runner = _file(
-        "RETRO_TTS_LEOPARD_HOST",
-        package_root / "native" / "leopardspeech" / "leopard_host.exe",
-        "leopard_host.exe from the NVDA add-on",
-    )
+    runner, wine = _runner(package_root)
     engine = _file(
         "RETRO_TTS_LEOPARD_ENGINE",
         tree / "Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk",
@@ -91,7 +128,6 @@ def _get_host() -> subprocess.Popen[bytes]:
         tree / "SpeechDictionary.framework/Versions/A/SpeechDictionary",
         "the Leopard SpeechDictionary binary",
     )
-    wine = os.environ.get("RETRO_TTS_WINE", "wine" if os.name != "nt" else "")
     key = (str(runner), str(engine), str(dictionary), str(tree), wine)
     if _host is not None and _host.poll() is None and _host_key == key:
         return _host
@@ -108,13 +144,26 @@ def _get_host() -> subprocess.Popen[bytes]:
         # Wine's GStreamer bridge instead needs the AudioSpecificConfig
         # appended to it so raw AAC caps contain codec_data.
         env.setdefault("TIGER_WINE_AAC", "1")
+    else:
+        env["TIGER_READY_HANDSHAKE"] = "1"
     stderr = None if env.get("TIGER_HOST_VERBOSE") else subprocess.DEVNULL
     _host = subprocess.Popen(
         command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=stderr, bufsize=0, env=env,
     )
     _host_key = key
+    if not wine:
+        ready = struct.unpack("<I", _read_exact(_host, 4, None))[0]
+        if ready != READY_MAGIC:
+            _stop_host()
+            raise RuntimeError("native Leopard host failed its ready handshake")
     return _host
+
+
+def preload() -> None:
+    """Load a native host and its Mach-O images before the first utterance."""
+    with _lock:
+        _get_host()
 
 
 def _read_exact(
@@ -123,11 +172,21 @@ def _read_exact(
 ) -> bytes:
     assert process.stdout is not None
     result = bytearray()
+    # MacinTalk normally produces the first response in well under a second.
+    # Bound a wedged request so rapid screen-reader interruptions cannot mute
+    # the synthesizer indefinitely.  Keep this configurable for unusually
+    # slow 32-bit hosts.
+    timeout = float(os.environ.get("RETRO_TTS_LEOPARD_TIMEOUT", "8"))
+    deadline = time.monotonic() + timeout
     while len(result) < length:
-        # The host protocol has no cancellation message.  Drain the current
-        # response even when Orca has moved on, then reuse the host for the
-        # next word.  Killing Wine here only kills its launcher on some Wine
-        # versions and leaves an orphaned Leopard host behind.
+        # A native host can be reaped reliably, so abandon it when Orca moves
+        # on instead of letting an interrupted utterance block every later
+        # request.  Retain the drain-and-reuse behavior for Wine, where killing
+        # the Unix launcher can leave the actual Windows process orphaned.
+        if cancelled is not None and cancelled() and _host_key and not _host_key[4]:
+            raise InterruptedError("Leopard speech request was cancelled")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Leopard speech host response timed out")
         readable, _, _ = select.select([process.stdout], [], [], 0.01)
         if not readable:
             if process.poll() is not None:
@@ -165,6 +224,65 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
     return output.getvalue()
 
 
+def _request(text: str, rate: int, pitch: int, voice_name: str, magic: int) -> bytes:
+    voice = voice_name.encode("utf-8")
+    payload = _mac_roman(text.strip())
+    wpm = 80 + round(max(0, min(100, rate)) * 3.2)
+    pitch_offset = round((max(0, min(100, pitch)) - 50) * 2.4)
+    return struct.pack(
+        "<IiiIII", magic, wpm, pitch_offset, 0, len(voice), len(payload)
+    ) + voice + payload
+
+
+def stream_pcm(
+    text: str, rate: int, pitch: int, send_audio: Callable[[bytes], bool], *,
+    voice: str | None = None, cancelled: Callable[[], bool] | None = None,
+) -> None:
+    """Stream native-host PCM as it is synthesized.
+
+    Linux uses SIGUSR1 as the non-blocking equivalent of the Windows cancel
+    event.  We still drain the stream terminator so the persistent protocol
+    remains synchronized for the next Orca utterance.
+    """
+    voice_name = voice or os.environ.get("RETRO_TTS_LEOPARD_VOICE", "Alex")
+    request = _request(text, rate, pitch, voice_name, REQ_MAGIC_STREAM)
+    with _lock:
+        process = _get_host()
+        assert process.stdin is not None
+        try:
+            process.stdin.write(request)
+            process.stdin.flush()
+            magic, status = struct.unpack("<Ii", _read_exact(process, 8, None))
+            if magic != RSP_MAGIC:
+                raise RuntimeError("Leopard speech host returned a bad response")
+            if status:
+                raise RuntimeError(f"Leopard speech engine returned OSErr {status}")
+            interrupted = False
+            while True:
+                if not interrupted and cancelled is not None and cancelled():
+                    interrupted = True
+                    if _host_key and not _host_key[4]:
+                        process.send_signal(signal.SIGUSR1)
+                frames = struct.unpack("<I", _read_exact(process, 4, None))[0]
+                if not frames:
+                    break
+                pcm = _read_exact(process, frames * 2, None)
+                if not interrupted and not send_audio(pcm):
+                    interrupted = True
+                    if _host_key and not _host_key[4]:
+                        process.send_signal(signal.SIGUSR1)
+            if _host_key and not _host_key[4]:
+                # Leopard's Linux AudioConverter path is currently reliable
+                # for one Alex utterance only. Retire it after every streamed
+                # response and preload a clean process before releasing the
+                # lock. This also makes cancellation recovery deterministic.
+                _stop_host()
+                _get_host()
+        except (BrokenPipeError, OSError):
+            _stop_host()
+            raise RuntimeError("Leopard speech host failed") from None
+
+
 def text_to_wav(
     text: str, rate: int = 50, pitch: int = 50, *,
     voice: str | None = None,
@@ -172,15 +290,10 @@ def text_to_wav(
 ) -> bytes:
     default_voice = "Alex"
     voice_name = voice or os.environ.get("RETRO_TTS_LEOPARD_VOICE", default_voice)
-    voice = voice_name.encode("utf-8")
     payload = _mac_roman(text.strip())
     if not payload:
         return _pcm_to_wav(b"")
-    wpm = 80 + round(max(0, min(100, rate)) * 3.2)
-    pitch_offset = round((max(0, min(100, pitch)) - 50) * 2.4)
-    request = struct.pack(
-        "<IiiIII", REQ_MAGIC, wpm, pitch_offset, 0, len(voice), len(payload)
-    ) + voice + payload
+    request = _request(text, rate, pitch, voice_name, REQ_MAGIC)
     with _lock:
         process = _get_host()
         assert process.stdin is not None
@@ -202,8 +315,8 @@ def text_to_wav(
         raise RuntimeError("Leopard speech produced no audio")
     if not any(pcm):
         raise RuntimeError(
-            f"Leopard voice {voice_name} decoded to silence; use Fred, Bruce, "
-            "Victoria, or another non-AAC voice under Wine"
+            f"Leopard voice {voice_name} decoded to silence; check the host's "
+            "AAC decoder or use Fred, Bruce, Victoria, or another non-AAC voice"
         )
     return _pcm_to_wav(pcm)
 

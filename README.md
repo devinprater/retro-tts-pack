@@ -19,13 +19,15 @@ nine on ARM64 (aarch64):
 
 The persistent renderer keeps emulators and engine state warm. Audio playback
 uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
-emulator is running. Wine is required only for WinTalker and Leopard Speech.
+emulator is running. Wine is required for WinTalker and is only a fallback for
+Leopard Speech when a native host is not present.
 
-## What's new in 0.3.0
+## What's new in 0.4.0
 
-- Leopard Speech adds the Mac OS X 10.5 MacinTalk voices through Wine.
-- Alex is the default voice and now decodes correctly through Wine's
-  GStreamer Media Foundation bridge, as does Vicki.
+- Leopard Speech adds a native 32-bit Linux host for the Mac OS X 10.5
+  MacinTalk voices, including Alex and Vicki.
+- Native audio streams to PipeWire with low latency and robust Orca
+  cancellation; Wine remains available as a fallback.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
@@ -38,7 +40,11 @@ Requirements:
 - Speech Dispatcher with the `sd_generic` module
 - PipeWire's `pw-play` command
 - a working per-user systemd manager, recommended but not mandatory
-- Wine, only when using WinTalker or Leopard Speech on x86_64
+- Wine for WinTalker, and for Leopard Speech only when using its PE fallback
+
+Native Leopard Speech additionally needs the distribution's 32-bit/i686
+runtime libraries for glibc, FFmpeg (`libavcodec`, `libavutil`, and
+`libswresample`), and SQLite.
 
 The included native binaries target a recent glibc-based Linux distribution.
 If the loader reports a missing `GLIBC` or `GLIBCXX` version, rebuild the
@@ -84,7 +90,7 @@ put them in the installed copy and run the installer again.
 | SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll` |
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
 | WinTalker (x86_64 only) | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
-| Leopard Speech (x86_64 only) | Extract the separately supplied archive so that `assets/leopardspeech/leopardspeech-data/Speech/Voices` exists, and install Wine |
+| Leopard Speech (x86_64 only) | Extract the separately supplied archive so that `assets/leopardspeech/leopardspeech-data/Speech/Voices` exists; the installer prefers a native host and otherwise requires Wine |
 
 These files originated in commercial products or add-ons. This distribution
 does not grant permission to copy them.
@@ -148,10 +154,9 @@ retro-tts --persistent --engine stspeech --output test.wav --text "Test."
 If a proprietary engine reports a missing path, verify spelling and filename
 case under `~/.local/share/retro-tts-pack/assets`, then rerun `install.sh`.
 
-WinTalker and Leopard Speech additionally require a working x86_64 Wine
-installation. WinTalker's DLL cannot be loaded by standard ARM64 Wine, so the
-ARM64 installer deliberately does not register either Wine-backed engine. Its
-small x86_64 host can be rebuilt with
+WinTalker requires a working x86_64 Wine installation. Leopard Speech prefers
+the native i386 Linux host when one is packaged and otherwise uses Wine.
+Neither engine runs on ARM64. WinTalker's small x86_64 host can be rebuilt with
 `make -C native/wintalker` when `winegcc` is installed.
 
 ## Raspberry Pi notes

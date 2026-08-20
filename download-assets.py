@@ -75,7 +75,7 @@ def digest(data: bytes) -> str:
 
 def fetch(url: str) -> bytes:
     request = urllib.request.Request(
-        url, headers={"User-Agent": "retro-tts-pack/0.2.2"}
+        url, headers={"User-Agent": "retro-tts-pack/0.4.0"}
     )
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()

@@ -183,7 +183,7 @@ def main() -> int:
     if not text.strip():
         return 0
     if args.persistent:
-        daemon_plays = args.engine == "amiganarrator" and args.output is None
+        daemon_plays = args.engine in ("amiganarrator", "leopardspeech") and args.output is None
         wav = _persistent_render(
             args.engine, text, args.rate, args.pitch, voice=args.voice,
             play=daemon_plays,

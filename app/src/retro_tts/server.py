@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import select
 import shutil
 import socket
 import struct
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 from .cli import _receive_exact, _render
@@ -17,6 +19,8 @@ from .engines.audio import PCM16PauseShortener, shorten_wav_pauses
 _amiga_state_lock = threading.Lock()
 _amiga_render_lock = threading.Lock()
 _amiga_cancel: threading.Event | None = None
+_leopard_state_lock = threading.Lock()
+_leopard_cancel: threading.Event | None = None
 
 
 def _preload() -> None:
@@ -27,6 +31,9 @@ def _preload() -> None:
     the persistent renderer's benefit for subsequent utterances without the
     large idle-memory cost.
     """
+    if os.environ.get("RETRO_TTS_LEOPARD_BACKEND", "auto") == "native":
+        from .engines.leopardspeech import preload
+        preload()
 
 
 def _connected(connection: socket.socket) -> bool:
@@ -110,6 +117,124 @@ def _new_amiga_request() -> threading.Event:
     return cancelled
 
 
+def _new_leopard_request() -> threading.Event:
+    global _leopard_cancel
+    cancelled = threading.Event()
+    with _leopard_state_lock:
+        if _leopard_cancel is not None:
+            _leopard_cancel.set()
+        _leopard_cancel = cancelled
+    return cancelled
+
+
+def _stream_leopard(
+    connection: socket.socket,
+    request: dict[str, object],
+    cancelled: threading.Event,
+) -> None:
+    from .engines.leopardspeech import stream_pcm
+
+    player = shutil.which("pw-play")
+    if not player:
+        raise RuntimeError("pw-play is required for streaming LeopardSpeech")
+    playback = subprocess.Popen(
+        [
+            player, "--raw", "--rate", "22050", "--channels", "1",
+            "--format", "s16", "--latency", "10ms", "-",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        bufsize=0,
+    )
+    assert playback.stdin is not None
+    os.set_blocking(playback.stdin.fileno(), False)
+    audio: queue.Queue[bytes | None] = queue.Queue()
+
+    def write_block(block: bytes) -> bool:
+        pending = memoryview(block)
+        deadline = time.monotonic() + 1.0
+        while pending:
+            if cancelled.is_set() or playback.poll() is not None:
+                return False
+            if time.monotonic() >= deadline:
+                return False
+            _, writable, _ = select.select([], [playback.stdin], [], 0.01)
+            if not writable:
+                continue
+            try:
+                written = os.write(playback.stdin.fileno(), pending)
+            except (BlockingIOError, BrokenPipeError):
+                if playback.poll() is not None:
+                    return False
+                continue
+            pending = pending[written:]
+            deadline = time.monotonic() + 1.0
+        return True
+
+    def feed_player() -> None:
+        clean_end = False
+        try:
+            while not cancelled.is_set():
+                block = audio.get()
+                if block is None:
+                    clean_end = True
+                    break
+                if not write_block(block):
+                    break
+            if clean_end and not cancelled.is_set():
+                playback.stdin.close()
+                while playback.poll() is None and not cancelled.wait(0.01):
+                    pass
+        finally:
+            if playback.poll() is None:
+                playback.terminate()
+            try:
+                playback.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                playback.kill()
+                playback.wait()
+            if playback.stdin is not None and not playback.stdin.closed:
+                playback.stdin.close()
+
+    writer = threading.Thread(target=feed_player, daemon=True)
+    writer.start()
+    completed = False
+
+    def send_audio(block: bytes) -> bool:
+        if cancelled.is_set() or playback.poll() is not None or not _connected(connection):
+            return False
+        audio.put(block)
+        return True
+
+    try:
+        stream_pcm(
+            str(request["text"]),
+            int(request.get("rate", 50)),
+            int(request.get("pitch", 50)),
+            send_audio,
+            voice=request.get("voice"),
+            cancelled=lambda: cancelled.is_set() or not _connected(connection),
+        )
+        audio.put(None)
+        completed = True
+    finally:
+        if not completed:
+            cancelled.set()
+            audio.put(None)
+    if completed:
+        # Keep sd_generic's command alive until its audio finishes. Speech
+        # Dispatcher uses that lifetime to serialize ordinary consecutive
+        # chunks (for example "CPU" followed by "RAM") and closes the client
+        # when it truly wants to interrupt. Returning as soon as synthesis
+        # completed made every queued chunk look concurrent, so the
+        # latest-request token discarded all but the last one.
+        while writer.is_alive():
+            if not _connected(connection):
+                cancelled.set()
+            writer.join(0.01)
+
+
 def _serve(connection: socket.socket) -> None:
     with connection:
         try:
@@ -117,6 +242,9 @@ def _serve(connection: socket.socket) -> None:
             request = json.loads(_receive_exact(connection, length))
             if request.get("play") and request["engine"] == "amiganarrator":
                 _stream_amiga(connection, request, _new_amiga_request())
+                wav = b""
+            elif request.get("play") and request["engine"] == "leopardspeech":
+                _stream_leopard(connection, request, _new_leopard_request())
                 wav = b""
             elif request["engine"] in ("wintalker", "leopardspeech"):
                 if request["engine"] == "wintalker":

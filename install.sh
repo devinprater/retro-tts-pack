@@ -80,6 +80,14 @@ exec python3 -m retro_tts.cli "\$@"
 EOF
 chmod 755 "$CLI"
 
+LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
+LEOPARD_BACKEND=wine
+if [ -x "$INSTALL_DIR/bin/leopard_host" ] &&
+   "$INSTALL_DIR/bin/leopard_host" --aac-check >/dev/null 2>&1; then
+    LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host"
+    LEOPARD_BACKEND=native
+fi
+
 cat >"$SYSTEMD_DIR/retro-tts.service" <<EOF
 [Unit]
 Description=Persistent renderer for retro Speech Dispatcher modules
@@ -109,7 +117,8 @@ Environment=RETRO_TTS_MONOLOGUE_BIN=$INSTALL_DIR/assets/monologue
 Environment=RETRO_TTS_WINTALKER_CLI=$INSTALL_DIR/bin/wintalker_cli.exe
 Environment=RETRO_TTS_WINTALKER_DLL=$INSTALL_DIR/assets/wintalker/WinTalker.dll
 Environment=RETRO_TTS_WINTALKER_LEX=$INSTALL_DIR/assets/wintalker/English.lex
-Environment=RETRO_TTS_LEOPARD_HOST=$INSTALL_DIR/bin/leopard_host.exe
+Environment=RETRO_TTS_LEOPARD_HOST=$LEOPARD_HOST
+Environment=RETRO_TTS_LEOPARD_BACKEND=$LEOPARD_BACKEND
 Environment=RETRO_TTS_LEOPARD_TREE=$INSTALL_DIR/assets/leopardspeech/leopardspeech-data
 Environment=RETRO_TTS_LEOPARD_VOICE=Alex
 KillMode=mixed
@@ -183,14 +192,21 @@ if [ "$architecture" = x86_64 ] &&
     "$ASSETS/leopardspeech/leopardspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
     "$ASSETS/leopardspeech/leopardspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" &&
    [ -d "$ASSETS/leopardspeech/leopardspeech-data/Speech/Voices" ] &&
-   command -v wine >/dev/null 2>&1; then
+   { { [ "$LEOPARD_BACKEND" = native ] && [ -x "$LEOPARD_HOST" ]; } ||
+     { [ -f "$LEOPARD_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
     available_modules="$available_modules leopardspeech"
 else missing_modules="$missing_modules leopardspeech"; fi
 
 for module in $available_modules; do
     source="$INSTALL_DIR/config/modules/$module-generic.conf"
     target="$MODULE_DIR/$module-generic.conf"
-    sed "s|retro-tts|$CLI|g" "$source" >"$target"
+    if [ "$module" = leopardspeech ]; then
+        sed -e "s|retro-tts|$CLI|g" \
+            -e "s|leopard_client|$INSTALL_DIR/bin/leopard_client|g" \
+            "$source" >"$target"
+    else
+        sed "s|retro-tts|$CLI|g" "$source" >"$target"
+    fi
 done
 
 SPEECHD_CONF="$SPEECHD_DIR/speechd.conf"
@@ -227,6 +243,11 @@ if [ "${RETRO_TTS_SKIP_SYSTEMD:-0}" != 1 ] &&
     else
         warn "systemd could not start retro-tts.service; see README.md"
     fi
+    # Prefer one socket-activated dispatcher. Leaving the socket disabled lets
+    # libspeechd auto-spawn a second daemon, after which restarting the systemd
+    # service fails with "Speech Dispatcher already running" and Orca can
+    # remain attached to a stale socket.
+    systemctl --user enable --now speech-dispatcher.socket >/dev/null 2>&1 || true
     systemctl --user try-restart speech-dispatcher.service >/dev/null 2>&1 || true
 else
     warn "no usable systemd user manager; start '$INSTALL_DIR/bin/retro-tts-server' in your desktop session"
