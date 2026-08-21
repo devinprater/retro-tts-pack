@@ -149,7 +149,11 @@ def _stream_leopard(
     )
     assert playback.stdin is not None
     os.set_blocking(playback.stdin.fileno(), False)
-    audio: queue.Queue[bytes | None] = queue.Queue()
+    # Match LeopardSpeech 0.7.2's 80 ms feed horizon. Keeping at most two
+    # chunks queued prevents completed synthesis from running far ahead of
+    # Orca cancellation while still insulating PipeWire from jitter.
+    audio: queue.Queue[bytes | None] = queue.Queue(maxsize=2)
+    chunk_bytes = round(22050 * 0.080) * 2
 
     def write_block(block: bytes) -> bool:
         pending = memoryview(block)
@@ -201,10 +205,27 @@ def _stream_leopard(
     writer.start()
     completed = False
 
+    def finish_audio() -> None:
+        while writer.is_alive() and not cancelled.is_set():
+            try:
+                audio.put(None, timeout=0.01)
+                return
+            except queue.Full:
+                continue
+
     def send_audio(block: bytes) -> bool:
         if cancelled.is_set() or playback.poll() is not None or not _connected(connection):
             return False
-        audio.put(block)
+        for offset in range(0, len(block), chunk_bytes):
+            chunk = block[offset:offset + chunk_bytes]
+            while True:
+                if cancelled.is_set() or playback.poll() is not None or not _connected(connection):
+                    return False
+                try:
+                    audio.put(chunk, timeout=0.01)
+                    break
+                except queue.Full:
+                    continue
         return True
 
     try:
@@ -213,15 +234,15 @@ def _stream_leopard(
             int(request.get("rate", 50)),
             int(request.get("pitch", 50)),
             send_audio,
+            volume=int(request.get("volume", 90)),
             voice=request.get("voice"),
             cancelled=lambda: cancelled.is_set() or not _connected(connection),
         )
-        audio.put(None)
+        finish_audio()
         completed = True
     finally:
         if not completed:
             cancelled.set()
-            audio.put(None)
     if completed:
         # Keep sd_generic's command alive until its audio finishes. Speech
         # Dispatcher uses that lifetime to serialize ordinary consecutive
@@ -256,7 +277,8 @@ def _serve(connection: socket.socket) -> None:
                     str(request["text"]),
                     int(request.get("rate", 50)),
                     int(request.get("pitch", 50)),
-                    **({"voice": request.get("voice")} if request["engine"] == "leopardspeech" else {}),
+                    **({"voice": request.get("voice"), "volume": int(request.get("volume", 90))}
+                       if request["engine"] == "leopardspeech" else {}),
                     cancelled=lambda: not _connected(connection),
                 )
             elif request["engine"] in ("smoothtalker", "monologue"):

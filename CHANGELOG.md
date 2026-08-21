@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1 - 2026-08-21
+
+- Updated Leopard Speech behavior to upstream 0.7.3.
+- Corrected Alex's stress when speaking the punctuation name "colon" before
+  another word, without altering embedded MacinTalk commands.
+- Added upstream per-voice volume normalization and sent volume on every
+  utterance, preventing a zero-volume request from silencing later speech.
+- Bounded native PipeWire feeding to 80 ms chunks for more responsive
+  cancellation.
+
 ## 0.4.0 - 2026-08-20
 
 - Added a native 32-bit Linux host for Leopard MacinTalk and Alex, with the

@@ -20,7 +20,8 @@ def _percent(value: int) -> int:
 
 
 def _render(
-    engine: str, text: str, rate: int, pitch: int, voice: str | None = None
+    engine: str, text: str, rate: int, pitch: int, voice: str | None = None,
+    volume: int = 90,
 ) -> bytes:
     text = normalize_text(text)
     rate = _percent(rate)
@@ -70,7 +71,7 @@ def _render(
         wav = wintalker_to_wav(text, rate=rate, pitch=pitch)
     elif engine == "leopardspeech":
         from .engines.leopardspeech import text_to_wav as leopard_to_wav
-        wav = leopard_to_wav(text, rate=rate, pitch=pitch, voice=voice)
+        wav = leopard_to_wav(text, rate=rate, pitch=pitch, volume=volume, voice=voice)
     else:
         raise ValueError(f"unknown engine: {engine}")
     if not wav:
@@ -117,7 +118,7 @@ def _play(wav: bytes) -> int:
 
 def _persistent_render(
     engine: str, text: str, rate: int, pitch: int, *,
-    voice: str | None = None, play: bool = False
+    voice: str | None = None, volume: int = 90, play: bool = False
 ) -> bytes:
     socket_path = os.environ.get(
         "RETRO_TTS_SOCKET",
@@ -126,7 +127,7 @@ def _persistent_render(
     request = json.dumps(
         {
             "engine": engine, "text": text, "rate": rate, "pitch": pitch,
-            "voice": voice, "play": play,
+            "voice": voice, "volume": volume, "play": play,
         }
     ).encode("utf-8")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -167,6 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--rate", type=int, default=50, help="rate from 0 through 100")
     parser.add_argument("--pitch", type=int, default=50, help="pitch from 0 through 100")
+    parser.add_argument("--volume", type=int, default=90, help="volume from 0 through 100")
     parser.add_argument("--voice", help="engine voice name (for example Alex or Vicki)")
     parser.add_argument("--output", type=Path, help="write a WAV file instead of playing")
     parser.add_argument(
@@ -186,12 +188,13 @@ def main() -> int:
         daemon_plays = args.engine in ("amiganarrator", "leopardspeech") and args.output is None
         wav = _persistent_render(
             args.engine, text, args.rate, args.pitch, voice=args.voice,
+            volume=args.volume,
             play=daemon_plays,
         )
         if daemon_plays:
             return 0
     else:
-        wav = _render(args.engine, text, args.rate, args.pitch, args.voice)
+        wav = _render(args.engine, text, args.rate, args.pitch, args.voice, args.volume)
     if args.output:
         args.output.write_bytes(wav)
         return 0

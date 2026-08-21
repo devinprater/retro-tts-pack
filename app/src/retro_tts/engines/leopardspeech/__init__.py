@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import os
+import re
 import select
 import signal
 import struct
@@ -19,6 +20,18 @@ REQ_MAGIC_STREAM = 0x54475234  # TGR4
 RSP_MAGIC = 0x54475253  # TGRS
 READY_MAGIC = 0x59445254  # TRDY
 SAMPLE_RATE = 22050
+VOLUME_CLEAN = 90
+VOLUME_MAX_VOLM = 2.0
+VOLUME_NORM_CEILING = 1.80
+VOLUME_NORM = {
+    "Agnes": 1.00, "Albert": 1.70, "Alex": 1.80, "BadNews": 1.80,
+    "Bahh": 1.70, "Bells": 1.70, "Boing": 1.70, "Bruce": 1.00,
+    "Bubbles": 1.70, "Cellos": 1.70, "Deranged": 1.70, "Fred": 1.80,
+    "GoodNews": 1.80, "Hysterical": 1.70, "Junior": 1.80, "Kathy": 1.73,
+    "Organ": 1.70, "Princess": 1.70, "Ralph": 1.70, "Trinoids": 1.70,
+    "Vicki": 1.20, "Victoria": 1.00, "Whisper": 1.80, "Zarvox": 1.70,
+}
+_COLON = re.compile(r"\bcolon\b", re.IGNORECASE)
 
 _host: subprocess.Popen[bytes] | None = None
 _host_key: tuple[str, str, str, str, str] | None = None
@@ -214,6 +227,27 @@ def _mac_roman(text: str) -> bytes:
     return bytes(result)
 
 
+def _fix_stress(text: str) -> str:
+    """Apply LeopardSpeech's measured correction outside embedded commands."""
+    def replace(match: re.Match[str]) -> str:
+        word = match.group(0)
+        fixed = "colen"
+        if word.isupper():
+            return fixed.upper()
+        return fixed.capitalize() if word[:1].isupper() else fixed
+
+    parts = re.split(r"(\[\[.*?\]\])", text, flags=re.DOTALL)
+    return "".join(part if part.startswith("[[") else _COLON.sub(replace, part)
+                   for part in parts)
+
+
+def _prepare_text(text: str, volume: int, voice: str) -> str:
+    level = max(0, min(100, volume))
+    normalization = min(VOLUME_NORM_CEILING, VOLUME_NORM.get(voice, 1.0))
+    volm = min(VOLUME_MAX_VOLM, normalization * level / VOLUME_CLEAN)
+    return f"[[volm {volm:.3f}]]" + _fix_stress(text.strip())
+
+
 def _pcm_to_wav(pcm: bytes) -> bytes:
     output = BytesIO()
     with wave.open(output, "wb") as wav:
@@ -224,9 +258,11 @@ def _pcm_to_wav(pcm: bytes) -> bytes:
     return output.getvalue()
 
 
-def _request(text: str, rate: int, pitch: int, voice_name: str, magic: int) -> bytes:
+def _request(
+    text: str, rate: int, pitch: int, volume: int, voice_name: str, magic: int,
+) -> bytes:
     voice = voice_name.encode("utf-8")
-    payload = _mac_roman(text.strip())
+    payload = _mac_roman(_prepare_text(text, volume, voice_name))
     wpm = 80 + round(max(0, min(100, rate)) * 3.2)
     pitch_offset = round((max(0, min(100, pitch)) - 50) * 2.4)
     return struct.pack(
@@ -236,7 +272,8 @@ def _request(text: str, rate: int, pitch: int, voice_name: str, magic: int) -> b
 
 def stream_pcm(
     text: str, rate: int, pitch: int, send_audio: Callable[[bytes], bool], *,
-    voice: str | None = None, cancelled: Callable[[], bool] | None = None,
+    volume: int = VOLUME_CLEAN, voice: str | None = None,
+    cancelled: Callable[[], bool] | None = None,
 ) -> None:
     """Stream native-host PCM as it is synthesized.
 
@@ -245,7 +282,7 @@ def stream_pcm(
     remains synchronized for the next Orca utterance.
     """
     voice_name = voice or os.environ.get("RETRO_TTS_LEOPARD_VOICE", "Alex")
-    request = _request(text, rate, pitch, voice_name, REQ_MAGIC_STREAM)
+    request = _request(text, rate, pitch, volume, voice_name, REQ_MAGIC_STREAM)
     with _lock:
         process = _get_host()
         assert process.stdin is not None
@@ -284,7 +321,7 @@ def stream_pcm(
 
 
 def text_to_wav(
-    text: str, rate: int = 50, pitch: int = 50, *,
+    text: str, rate: int = 50, pitch: int = 50, volume: int = VOLUME_CLEAN, *,
     voice: str | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> bytes:
@@ -293,7 +330,7 @@ def text_to_wav(
     payload = _mac_roman(text.strip())
     if not payload:
         return _pcm_to_wav(b"")
-    request = _request(text, rate, pitch, voice_name, REQ_MAGIC)
+    request = _request(text, rate, pitch, volume, voice_name, REQ_MAGIC)
     with _lock:
         process = _get_host()
         assert process.stdin is not None

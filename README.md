@@ -22,12 +22,12 @@ uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
-## What's new in 0.4.0
+## What's new in 0.4.1
 
-- Leopard Speech adds a native 32-bit Linux host for the Mac OS X 10.5
-  MacinTalk voices, including Alex and Vicki.
-- Native audio streams to PipeWire with low latency and robust Orca
-  cancellation; Wine remains available as a fallback.
+- Updated Leopard Speech behavior to upstream 0.7.3, including corrected
+  stress for the spoken word "colon" and per-voice volume normalization.
+- Limited queued audio to 80 ms chunks for faster interruption during Orca
+  navigation while retaining the stable native host lifecycle.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
