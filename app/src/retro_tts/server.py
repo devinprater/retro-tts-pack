@@ -8,19 +8,91 @@ import shutil
 import socket
 import struct
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
 
 from .cli import _receive_exact, _render
 from .engines.audio import PCM16PauseShortener, shorten_wav_pauses
+from .text import normalize_text
 
 
 _amiga_state_lock = threading.Lock()
 _amiga_render_lock = threading.Lock()
 _amiga_cancel: threading.Event | None = None
-_leopard_state_lock = threading.Lock()
-_leopard_cancel: threading.Event | None = None
+_panthera_state_lock = threading.Lock()
+_panthera_render_lock = threading.Lock()
+_panthera_cancel: threading.Event | None = None
+_panthera_playback: subprocess.Popen[bytes] | None = None
+_softvoice_lock = threading.Lock()
+_softvoice_workers: dict[str, tuple[subprocess.Popen[bytes], int]] = {}
+_SOFTVOICE_WORKER_LIMIT = 10
+
+
+def _stop_softvoice_worker(language: str) -> None:
+    entry = _softvoice_workers.pop(language, None)
+    if entry is None:
+        return
+    process = entry[0]
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
+def _softvoice_worker(language: str) -> tuple[subprocess.Popen[bytes], int]:
+    entry = _softvoice_workers.get(language)
+    if entry is not None and entry[0].poll() is None and entry[1] < _SOFTVOICE_WORKER_LIMIT:
+        return entry
+    _stop_softvoice_worker(language)
+    process = subprocess.Popen(
+        [sys.executable, "-m", "retro_tts.softvoice_worker"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, bufsize=0,
+    )
+    _softvoice_workers[language] = (process, 0)
+    return process, 0
+
+
+def _read_pipe_exact(source, length: int) -> bytes:
+    result = bytearray()
+    while len(result) < length:
+        block = source.read(length - len(result))
+        if not block:
+            raise EOFError("SoftVoice worker disconnected")
+        result.extend(block)
+    return bytes(result)
+
+
+def _render_softvoice(request: dict[str, object]) -> bytes:
+    voice = str(request.get("voice") or "male")
+    language = "es" if voice.lower().startswith("spanish") else "en"
+    payload = json.dumps({
+        "text": request["text"], "voice": voice,
+        "rate": int(request.get("rate", 50)),
+    }).encode("utf-8")
+    with _softvoice_lock:
+        for attempt in range(2):
+            process, uses = _softvoice_worker(language)
+            assert process.stdin is not None and process.stdout is not None
+            try:
+                process.stdin.write(struct.pack("!I", len(payload)) + payload)
+                process.stdin.flush()
+                status, length = struct.unpack("!BI", _read_pipe_exact(process.stdout, 5))
+                result = _read_pipe_exact(process.stdout, length)
+                _softvoice_workers[language] = (process, uses + 1)
+                if status:
+                    raise RuntimeError(result.decode("utf-8", "replace"))
+                return result
+            except (BrokenPipeError, EOFError, OSError, RuntimeError):
+                _stop_softvoice_worker(language)
+                if attempt:
+                    raise
+    raise RuntimeError("SoftVoice worker failed")
 
 
 def _preload() -> None:
@@ -91,6 +163,7 @@ def _stream_amiga(
                 int(request.get("rate", 50)),
                 int(request.get("pitch", 50)),
                 shortener.feed,
+                voice=request.get("voice"),
             )
             shortener.finish()
             playback.stdin.close()
@@ -117,26 +190,33 @@ def _new_amiga_request() -> threading.Event:
     return cancelled
 
 
-def _new_leopard_request() -> threading.Event:
-    global _leopard_cancel
+def _new_panthera_request() -> threading.Event:
+    global _panthera_cancel, _panthera_playback
     cancelled = threading.Event()
-    with _leopard_state_lock:
-        if _leopard_cancel is not None:
-            _leopard_cancel.set()
-        _leopard_cancel = cancelled
+    with _panthera_state_lock:
+        if _panthera_cancel is not None:
+            _panthera_cancel.set()
+        # Setting the token stops synthesis, but a PipeWire client can retain
+        # already-buffered samples until its writer thread next runs. Stop it
+        # here, before the new arrow-key utterance can create another stream.
+        if _panthera_playback is not None and _panthera_playback.poll() is None:
+            _panthera_playback.terminate()
+        _panthera_playback = None
+        _panthera_cancel = cancelled
     return cancelled
 
 
-def _stream_leopard(
+def _stream_panthera_unlocked(
     connection: socket.socket,
     request: dict[str, object],
     cancelled: threading.Event,
 ) -> None:
-    from .engines.leopardspeech import stream_pcm
+    from .engines.pantheraspeech import stream_pcm
 
+    global _panthera_playback
     player = shutil.which("pw-play")
     if not player:
-        raise RuntimeError("pw-play is required for streaming LeopardSpeech")
+        raise RuntimeError("pw-play is required for streaming Panthera speech")
     playback = subprocess.Popen(
         [
             player, "--raw", "--rate", "22050", "--channels", "1",
@@ -147,6 +227,11 @@ def _stream_leopard(
         stderr=subprocess.DEVNULL,
         bufsize=0,
     )
+    with _panthera_state_lock:
+        if _panthera_cancel is cancelled and not cancelled.is_set():
+            _panthera_playback = playback
+        else:
+            playback.terminate()
     assert playback.stdin is not None
     os.set_blocking(playback.stdin.fileno(), False)
     # Match LeopardSpeech 0.7.2's 80 ms feed horizon. Keeping at most two
@@ -236,6 +321,7 @@ def _stream_leopard(
             send_audio,
             volume=int(request.get("volume", 90)),
             voice=request.get("voice"),
+            generation=str(request["engine"]),
             cancelled=lambda: cancelled.is_set() or not _connected(connection),
         )
         finish_audio()
@@ -254,6 +340,23 @@ def _stream_leopard(
             if not _connected(connection):
                 cancelled.set()
             writer.join(0.01)
+    with _panthera_state_lock:
+        if _panthera_playback is playback:
+            _panthera_playback = None
+
+
+def _stream_panthera(
+    connection: socket.socket,
+    request: dict[str, object],
+    cancelled: threading.Event,
+) -> None:
+    # Player creation must be serialized as well as host access. Otherwise a
+    # burst of Orca events creates several pw-play processes before those
+    # threads reach pantheraspeech's host lock, and their buffers overlap.
+    with _panthera_render_lock:
+        if cancelled.is_set() or not _connected(connection):
+            return
+        _stream_panthera_unlocked(connection, request, cancelled)
 
 
 def _serve(connection: socket.socket) -> None:
@@ -261,24 +364,44 @@ def _serve(connection: socket.socket) -> None:
         try:
             length = struct.unpack("!I", _receive_exact(connection, 4))[0]
             request = json.loads(_receive_exact(connection, length))
+            # Keep normalization in the persistent renderer so lightweight
+            # clients and the Python CLI produce identical vintage-engine
+            # input without duplicating these Unicode rules.
+            request["text"] = normalize_text(str(request["text"]))
             if request.get("play") and request["engine"] == "amiganarrator":
                 _stream_amiga(connection, request, _new_amiga_request())
                 wav = b""
-            elif request.get("play") and request["engine"] == "leopardspeech":
-                _stream_leopard(connection, request, _new_leopard_request())
+            elif request.get("play") and request["engine"] in (
+                "tigerspeech", "leopardspeech", "lionspeech"
+            ):
+                _stream_panthera(connection, request, _new_panthera_request())
                 wav = b""
-            elif request["engine"] in ("wintalker", "leopardspeech"):
+            elif request["engine"] in (
+                "wintalker", "echotalk", "outspoken",
+                "tigerspeech", "leopardspeech", "lionspeech"
+            ):
                 if request["engine"] == "wintalker":
                     from .engines.wintalker import text_to_wav
+                elif request["engine"] == "echotalk":
+                    from .engines.echotalk import text_to_wav
+                elif request["engine"] == "outspoken":
+                    from .engines.outspoken import text_to_wav
                 else:
-                    from .engines.leopardspeech import text_to_wav
+                    from .engines.pantheraspeech import text_to_wav
 
                 wav = text_to_wav(
                     str(request["text"]),
                     int(request.get("rate", 50)),
                     int(request.get("pitch", 50)),
-                    **({"voice": request.get("voice"), "volume": int(request.get("volume", 90))}
-                       if request["engine"] == "leopardspeech" else {}),
+                    **({
+                        "voice": request.get("voice"),
+                        "volume": int(request.get("volume", 90)),
+                        "generation": request["engine"],
+                    } if request["engine"] not in ("wintalker", "echotalk", "outspoken") else {
+                        "voice": request.get("voice"),
+                        **({"volume": int(request.get("volume", 90))}
+                           if request["engine"] != "wintalker" else {}),
+                    }),
                     cancelled=lambda: not _connected(connection),
                 )
             elif request["engine"] in ("smoothtalker", "monologue"):
@@ -292,9 +415,12 @@ def _serve(connection: socket.socket) -> None:
                     str(request["text"]),
                     rate=round(rate * 0.09),
                     pitch=round(pitch * 0.09),
+                    **({"voice": request.get("voice")} if request["engine"] == "monologue" else {}),
                     cancelled=lambda: not _connected(connection),
                 )
                 wav = shorten_wav_pauses(wav)
+            elif request["engine"] == "softvoice":
+                wav = _render_softvoice(request)
             else:
                 wav = _render(
                     request["engine"],

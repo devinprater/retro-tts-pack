@@ -100,7 +100,15 @@ def _native_pitch(pitch: int) -> int:
     return 110 + round((value - 50) * 210 / 50)
 
 
-def _prepare(text: str, rate: int, pitch: int) -> tuple[str, str, int, int]:
+_VOICES = {
+    "amiga": (0, 0), "male_natural": (0, 0), "male_robotic": (0, 1),
+    "female_natural": (1, 0), "female_robotic": (1, 1),
+}
+
+
+def _prepare(
+    text: str, rate: int, pitch: int, voice: str | None,
+) -> tuple[str, str, int, int, int, int]:
     executable = os.environ.get("RETRO_TTS_AMIGA_NARRATOR") or shutil.which("narrator")
     device = os.environ.get("RETRO_TTS_AMIGA_DEVICE")
     translator = os.environ.get("RETRO_TTS_AMIGA_TRANSLATOR") or shutil.which("translator")
@@ -129,7 +137,9 @@ def _prepare(text: str, rate: int, pitch: int) -> tuple[str, str, int, int]:
             "RETRO_TTS_AMIGA_CMU_DICT as a fallback"
         )
 
-    return executable, phonetic, _native_rate(rate), _native_pitch(pitch)
+    voice_id = (voice or "amiga").lower().replace(" ", "_")
+    sex, mode = _VOICES.get(voice_id, (0, 0))
+    return executable, phonetic, _native_rate(rate), _native_pitch(pitch), sex, mode
 
 
 def stream_pcm(
@@ -137,15 +147,18 @@ def stream_pcm(
     rate: int,
     pitch: int,
     on_audio: Callable[[bytes], bool],
+    voice: str | None = None,
 ) -> None:
-    executable, phonetic, native_rate, native_pitch = _prepare(text, rate, pitch)
+    executable, phonetic, native_rate, native_pitch, sex, mode = _prepare(
+        text, rate, pitch, voice
+    )
     if not phonetic:
         return
     device = os.environ["RETRO_TTS_AMIGA_DEVICE"]
     process = subprocess.Popen(
         [
             executable, "-d", device, "-r", str(native_rate),
-            "-p", str(native_pitch), phonetic,
+            "-p", str(native_pitch), "-s", str(sex), "-m", str(mode), phonetic,
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
@@ -180,14 +193,16 @@ def stream_pcm(
         raise RuntimeError(f"Amiga Narrator synthesis failed ({returncode})")
 
 
-def text_to_wav(text: str, rate: int = 50, pitch: int = 50) -> bytes:
+def text_to_wav(
+    text: str, rate: int = 50, pitch: int = 50, voice: str | None = None,
+) -> bytes:
     pcm = bytearray()
 
     def collect(block: bytes) -> bool:
         pcm.extend(block)
         return True
 
-    stream_pcm(text, rate, pitch, collect)
+    stream_pcm(text, rate, pitch, collect, voice=voice)
 
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:

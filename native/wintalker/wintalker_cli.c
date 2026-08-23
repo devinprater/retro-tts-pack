@@ -9,6 +9,7 @@ typedef long (__cdecl *close_fn)(void *);
 typedef void (__cdecl *lex_fn)(const char *);
 typedef long (__cdecl *voice_fn)(void *, short);
 typedef void (__cdecl *set_fn)(void *, long);
+typedef long (__cdecl *get_fn)(void *);
 typedef long (__cdecl *size_fn)(void);
 typedef long (__cdecl *speak_fn)(void *, const char *, long, long);
 typedef long (__cdecl *render_fn)(void *, short *, long, long *);
@@ -20,6 +21,7 @@ struct api {
     voice_fn use_voice;
     set_fn set_rate;
     set_fn set_pitch;
+    get_fn get_pitch;
     set_fn set_pause;
     size_fn buffer_size;
     speak_fn speak;
@@ -59,12 +61,13 @@ static int initialize(struct api *api, const char *dll_path, const char *lex_pat
     api->use_voice = LOAD(api->dll, UseVoice, voice_fn);
     api->set_rate = LOAD(api->dll, SetSpeechRate, set_fn);
     api->set_pitch = LOAD(api->dll, SetSpeechPitch, set_fn);
+    api->get_pitch = LOAD(api->dll, GetSpeechPitch, get_fn);
     api->set_pause = LOAD(api->dll, SetPausePercent, set_fn);
     api->buffer_size = LOAD(api->dll, GetMinBufferSize, size_fn);
     api->speak = LOAD(api->dll, SpeakBufferRender, speak_fn);
     api->render = LOAD(api->dll, RenderNext, render_fn);
     if (!set_lex || !open_render || !api->close || !api->use_voice ||
-        !api->set_rate || !api->set_pitch || !api->buffer_size ||
+        !api->set_rate || !api->set_pitch || !api->get_pitch || !api->buffer_size ||
         !api->speak || !api->render) return 0;
     set_lex(lex_path);
     if (open_render(&api->voice) || !api->voice) return 0;
@@ -75,10 +78,18 @@ static int initialize(struct api *api, const char *dll_path, const char *lex_pat
 
 static unsigned char *render(
     struct api *api, const char *text, uint32_t length,
-    int32_t rate, int32_t pitch, size_t *output_size
+    int32_t rate, int32_t pitch, int32_t voice, size_t *output_size
 ) {
+    api->use_voice(api->voice, (short)voice);
+    /* UseVoice installs the personality's own pitch (Trinoids, Bubbles,
+       etc.). Treat Orca's 0..100 pitch as an offset around that value instead
+       of replacing every personality with Fred's absolute pitch. */
+    long voice_pitch = api->get_pitch(api->voice);
+    long adjusted_pitch = voice_pitch + ((long)pitch - 50) * 8;
+    if (adjusted_pitch < 0) adjusted_pitch = 0;
+    if (adjusted_pitch > 850) adjusted_pitch = 850;
     api->set_rate(api->voice, rate);
-    api->set_pitch(api->voice, pitch);
+    api->set_pitch(api->voice, adjusted_pitch);
     if (api->speak(api->voice, text, (long)length, 0)) return NULL;
     long capacity = api->buffer_size(), result = 0;
     short *chunk = malloc((size_t)capacity * 2);
@@ -105,15 +116,17 @@ static unsigned char *render(
 
 static int server(struct api *api) {
     for (;;) {
-        uint32_t length, rate, pitch;
+        uint32_t length, rate, pitch, voice;
         if (!get_u32(stdin, &length)) return feof(stdin) ? 0 : 1;
-        if (!get_u32(stdin, &rate) || !get_u32(stdin, &pitch) || length > 1048576)
+        if (!get_u32(stdin, &rate) || !get_u32(stdin, &pitch) ||
+            !get_u32(stdin, &voice) || length > 1048576 || voice > 16)
             return 1;
         char *text = malloc((size_t)length + 1);
         if (!text || fread(text, 1, length, stdin) != length) { free(text); return 1; }
         text[length] = 0;
         size_t pcm_size = 0;
-        unsigned char *pcm = render(api, text, length, (int32_t)rate, (int32_t)pitch, &pcm_size);
+        unsigned char *pcm = render(api, text, length, (int32_t)rate,
+            (int32_t)pitch, (int32_t)voice, &pcm_size);
         free(text);
         if (!pcm) { put_u32(stdout, 0); fflush(stdout); continue; }
         put_u32(stdout, (uint32_t)pcm_size + 44);
@@ -151,7 +164,7 @@ int main(int argc, char **argv) {
             text[length++] = ch < 128 ? (char)ch : '?';
         }
         unsigned char *pcm = text ? render(&api, text, (uint32_t)length,
-            strtol(argv[3], NULL, 10), strtol(argv[4], NULL, 10), &pcm_size) : NULL;
+            strtol(argv[3], NULL, 10), strtol(argv[4], NULL, 10), 0, &pcm_size) : NULL;
         if (!pcm) result = 1; else { write_wav(stdout, pcm, pcm_size); free(pcm); }
         free(text);
     }

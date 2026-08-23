@@ -2,8 +2,8 @@
 
 Project repository: <https://github.com/devinprater/retro-tts-pack>
 
-This Linux pack provides eleven retro speech synthesizer adapters on x86_64 and
-nine on ARM64 (aarch64):
+This Linux pack provides fifteen retro speech synthesizer adapters on x86_64 and
+eleven on ARM64 (aarch64):
 
 - SAM
 - Atari ST Speech
@@ -15,19 +15,24 @@ nine on ARM64 (aarch64):
 - SoftVoice
 - Amiga Narrator
 - WinTalker / MacInTalk
-- Leopard Speech / Mac OS X 10.5 MacinTalk (including Alex)
+- EchoTalk / Echo II Textalker 1.3 and 3.1.3
+- OutSpoken: MacinTalk 1, 2, 3, and Pro
+- Panthera Speech generations: Tiger 10.4, Leopard 10.5, and Lion 10.7
+  MacinTalk (including Vicki and Alex)
 
 The persistent renderer keeps emulators and engine state warm. Audio playback
 uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
-## What's new in 0.4.1
+## What's new in 1.0.0
 
-- Updated Leopard Speech behavior to upstream 0.7.3, including corrected
-  stress for the spoken word "colon" and per-voice volume normalization.
-- Limited queued audio to 80 ms chunks for faster interruption during Orca
-  navigation while retaining the stable native host lifecycle.
+- Added native EchoTalk and OutSpoken engines on x86_64 and ARM64, including
+  all 34 supplied MacinTalk 1, 2, 3, and Pro voices.
+- Added every usable NVDA language, voice, and personality to Orca with the
+  add-ons' real display names.
+- Uses checksum-pinned DECtalk.nu Tiger and Leopard data packages and removes
+  the superseded download source completely.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
@@ -65,6 +70,14 @@ their projects' GitHub releases:
 
 An interactive installation also offers this choice. Noninteractive
 installations do not download proprietary assets unless the option is given.
+The opt-in downloader also retrieves checksum-pinned SmoothTalker, Monologue,
+DoubleTalk PC, WinTalker, SoftVoice, and Amiga Narrator packages from
+DECtalk.nu, retaining
+datajake as a fallback for packages mirrored identically there. DECtalk.nu also
+provides the checksum-pinned Tiger and Leopard trees, EchoTalk Textalker images,
+and the OutSpoken MacinTalk ROM collection. Lion and Sequoia data are no longer
+downloaded automatically and can still be discovered from nearby add-ons or
+copied into their asset directories manually.
 
 The installer places the pack in
 `$XDG_DATA_HOME/retro-tts-pack` (normally
@@ -86,16 +99,20 @@ put them in the installed copy and run the installer again.
 | Monolog | `assets/monologue/FB_11K8.DLL`, `FB_22K16.DLL`, `FB_DEFLT.DIC`, `FB_NGN.EXE`, `FB_SPCH.DLL`, `FB_TIMER.DLL` |
 | Prose 2000 | `assets/prose2000/v3.4.1__2000__2.u22`, `v3.4.1__2000__3.u45`, `v3.4.1__2000__0.u21`, `v3.4.1__2000__1.u44`, `v3.12__8-9-88__dsp_prog.u29`, `v3.12__8-9-88__dsp_data.u29` |
 | DoubleTalk PC | `assets/doubletalkpc/doubletalkpc.bin` |
-| BeSTSpeech | `assets/bestspeech/b32_tts.dll` |
-| SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll` |
+| BeSTSpeech | `assets/bestspeech/b32_tts.dll`; the add-on's `dll_*.dll` files enable English, Dutch, French, German, Greek, Hebrew, Italian, Japanese, Polish, Portuguese, Russian, and Spanish |
+| SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll`; `TISPAN32.DLL` enables Spanish |
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
+| EchoTalk | `assets/echotalk/textalker.ram.bin`, `textalker.obj.bin`, `textalker_v13.ram.bin`, and `textalker_v13.obj.bin` |
+| OutSpoken | `assets/outspoken/outspoken-roms`; individual MacinTalk 1, 2, 3, or Pro generations are discovered from its subdirectories |
 | WinTalker (x86_64 only) | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
-| Leopard Speech (x86_64 only) | Extract the separately supplied archive so that `assets/leopardspeech/leopardspeech-data/Speech/Voices` exists; the installer prefers a native host and otherwise requires Wine |
+| Tiger Speech (x86_64 only) | `assets/tigerspeech/tigerspeech-data/Speech/Voices`; Wine is required by this pack |
+| Leopard Speech (x86_64 only) | `assets/leopardspeech/leopardspeech-data/Speech/Voices`; the installer prefers its Wine-compatible native host where available |
+| Lion Speech (x86_64 only) | `assets/lionspeech/lionspeech-data/Speech/Voices`, including `libstdc++.6.0.9.dylib` and `libc++abi.dylib`; Wine is required |
 
 These files originated in commercial products or add-ons. This distribution
 does not grant permission to copy them.
 
-The downloader intentionally does not fetch SoftVoice, WinTalker, Leopard Speech, or the remaining
+The downloader intentionally does not fetch the remaining
 commercial firmware from generic DLL sites or archival disk images. Public
 availability alone does not establish redistribution permission, and those
 sources cannot be authenticated as project-published releases.
@@ -105,6 +122,11 @@ sources cannot be authenticated as project-published releases.
 After installation and a Speech Dispatcher restart, open Orca Preferences,
 choose Speech, and select one of the installed synthesizers. The installer
 only registers engines whose required assets were found.
+
+Speech Dispatcher has no separate NVDA-style variant setting, so SoftVoice
+personalities and Amiga Narrator sex/mode variants appear as selectable people.
+BeSTSpeech exposes its classic personalities and language-specific people such
+as `French - Fred`, `Japanese - Fred`, and `Spanish - Fred`.
 
 If voices do not appear, restart Orca. On systems where Speech Dispatcher is
 not managed by a systemd user service, log out and back in or restart the
@@ -137,6 +159,10 @@ Test a module:
 spd-say -w -o sam "SAM is working."
 spd-say -w -o bestspeech "BeSTSpeech is working."
 spd-say -w -o leopardspeech "Alex is working."
+spd-say -w -o tigerspeech "Vicki is working."
+spd-say -w -o echotalk "Textalker is working."
+spd-say -w -o outspoken "The original MacinTalk is working."
+spd-say -w -o lionspeech "Lion Alex is working."
 ```
 
 List configured modules:

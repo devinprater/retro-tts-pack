@@ -9,7 +9,16 @@ from pathlib import Path
 from ..audio import trim_leading_audio
 
 
-def text_to_wav(text: str, rate: int = 50, pitch: int = 50, volume: int = 100) -> bytes:
+_VOICES = {
+    "perfect_paul": 0, "vader": 1, "big_bob": 2, "precise_pete": 3,
+    "ricochet": 4, "biff": 5, "skip": 6, "robo_robert": 7,
+}
+
+
+def text_to_wav(
+    text: str, rate: int = 50, pitch: int = 50, volume: int = 100,
+    voice: str | None = None,
+) -> bytes:
     executable = os.environ.get("RETRO_TTS_DTALK_CLI") or shutil.which("dtalk_cli")
     rom = os.environ.get("RETRO_TTS_DTALK_ROM")
     if not executable:
@@ -19,7 +28,9 @@ def text_to_wav(text: str, rate: int = 50, pitch: int = 50, volume: int = 100) -
     card_rate = round(max(0, min(100, rate)) * 9 / 100)
     card_pitch = round(max(0, min(100, pitch)) * 99 / 100)
     card_volume = round(max(0, min(100, volume)) * 9 / 100)
-    controls = f"\x010O\x01{card_rate}S\x01{card_pitch}P\x01{card_volume}V\x0114B"
+    voice_id = (voice or "perfect_paul").lower().replace(" ", "_")
+    voice_number = _VOICES.get(voice_id, 0)
+    controls = f"\x01{voice_number}O\x01{card_rate}S\x01{card_pitch}P\x01{card_volume}V\x0114B"
     clean = "".join(character if 0x20 <= ord(character) <= 0x7E else " " for character in text)
     with tempfile.TemporaryDirectory(prefix="retro-dtalk-") as temporary:
         output = Path(temporary) / "speech.wav"

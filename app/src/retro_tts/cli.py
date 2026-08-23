@@ -27,11 +27,16 @@ def _render(
     rate = _percent(rate)
     pitch = _percent(pitch)
     if engine == "sam":
-        from .engines.sam import text_to_wav as sam_to_wav
+        from .engines.sam import VOICE_PRESETS, text_to_wav as sam_to_wav
         # SAM speed is inverse: smaller values speak faster.
         speed = round(180 - rate * 1.6)
         sam_pitch = round(20 + pitch * 1.8)
-        wav = sam_to_wav(text, pitch=sam_pitch, speed=speed)
+        sam_voice = (voice or "sam").lower().replace(" ", "_").replace("-", "_")
+        preset = VOICE_PRESETS.get(sam_voice, VOICE_PRESETS["sam"])
+        wav = sam_to_wav(
+            text, pitch=sam_pitch, speed=speed,
+            mouth=preset["mouth"], throat=preset["throat"],
+        )
     elif engine == "stspeech":
         from .engines.stspeech import text_to_wav as stspeech_to_wav
         # STSpeech's rate parameter is a frame delay: larger is slower.
@@ -50,33 +55,49 @@ def _render(
         from .engines.monologue import text_to_wav as monologue_to_wav
         engine_rate = round(rate * 0.09)
         engine_pitch = round(pitch * 0.09)
-        wav = monologue_to_wav(text, rate=engine_rate, pitch=engine_pitch)
+        wav = monologue_to_wav(
+            text, rate=engine_rate, pitch=engine_pitch,
+            voice=voice,
+        )
     elif engine == "prose2000":
         from .engines.prose2000 import text_to_wav as prose2000_to_wav
         wav = prose2000_to_wav(text, rate=rate, pitch=pitch)
     elif engine == "doubletalkpc":
         from .engines.doubletalkpc import text_to_wav as doubletalkpc_to_wav
-        wav = doubletalkpc_to_wav(text, rate=rate, pitch=pitch)
+        wav = doubletalkpc_to_wav(text, rate=rate, pitch=pitch, voice=voice)
     elif engine == "bestspeech":
         from .engines.bestspeech import text_to_wav as bestspeech_to_wav
-        wav = bestspeech_to_wav(text, rate=rate, pitch=pitch)
+        wav = bestspeech_to_wav(text, rate=rate, pitch=pitch, voice=voice)
     elif engine == "amiganarrator":
         from .engines.amiganarrator import text_to_wav as amiganarrator_to_wav
-        wav = amiganarrator_to_wav(text, rate=rate, pitch=pitch)
+        wav = amiganarrator_to_wav(text, rate=rate, pitch=pitch, voice=voice)
     elif engine == "softvoice":
         from .engines.softvoice import text_to_wav as softvoice_to_wav
-        wav = softvoice_to_wav(text)
+        wav = softvoice_to_wav(text, voice=voice, rate=rate)
     elif engine == "wintalker":
         from .engines.wintalker import text_to_wav as wintalker_to_wav
-        wav = wintalker_to_wav(text, rate=rate, pitch=pitch)
-    elif engine == "leopardspeech":
-        from .engines.leopardspeech import text_to_wav as leopard_to_wav
-        wav = leopard_to_wav(text, rate=rate, pitch=pitch, volume=volume, voice=voice)
+        wav = wintalker_to_wav(text, rate=rate, pitch=pitch, voice=voice)
+    elif engine == "echotalk":
+        from .engines.echotalk import text_to_wav as echotalk_to_wav
+        wav = echotalk_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
+    elif engine == "outspoken":
+        from .engines.outspoken import text_to_wav as outspoken_to_wav
+        wav = outspoken_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
+    elif engine in ("tigerspeech", "leopardspeech", "lionspeech"):
+        from .engines.pantheraspeech import text_to_wav as panthera_to_wav
+        wav = panthera_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+            generation=engine,
+        )
     else:
         raise ValueError(f"unknown engine: {engine}")
     if not wav:
         raise RuntimeError(f"{engine} produced no audio")
-    return wav if engine in ("wintalker", "leopardspeech") else shorten_wav_pauses(wav)
+    return wav if engine in ("wintalker", "tigerspeech", "leopardspeech", "lionspeech") else shorten_wav_pauses(wav)
 
 
 def _play(wav: bytes) -> int:
@@ -162,7 +183,8 @@ def build_parser() -> argparse.ArgumentParser:
             "bestspeech", "softvoice",
             "amiganarrator",
             "wintalker",
-            "leopardspeech",
+            "echotalk", "outspoken",
+            "tigerspeech", "leopardspeech", "lionspeech",
         ),
         required=True,
     )
@@ -185,7 +207,11 @@ def main() -> int:
     if not text.strip():
         return 0
     if args.persistent:
-        daemon_plays = args.engine in ("amiganarrator", "leopardspeech") and args.output is None
+        # Keep Panthera on bounded WAV playback. Wine cannot safely interrupt
+        # a host response in place; its raw streaming path can retain the
+        # shared render lock after rapid Orca cancellation and mute all three
+        # generations. The client-side player remains directly cancellable.
+        daemon_plays = args.engine == "amiganarrator" and args.output is None
         wav = _persistent_render(
             args.engine, text, args.rate, args.pitch, voice=args.voice,
             volume=args.volume,

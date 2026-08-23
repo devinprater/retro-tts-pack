@@ -12,6 +12,12 @@ from pathlib import Path
 _host: subprocess.Popen[bytes] | None = None
 _host_key: tuple[str, str, str, str | None] | None = None
 _lock = threading.Lock()
+_VOICES = {
+    "fred": 0, "kathy": 1, "princess": 2, "junior": 3, "ralph": 4,
+    "whisper": 5, "zarvox": 6, "trinoids": 7, "bubbles": 8, "boing": 9,
+    "bells": 10, "hysterical": 11, "deranged": 12, "goodnews": 13,
+    "badnews": 14, "pipeorgan": 15, "cellos": 16,
+}
 
 
 def _path(variable: str, default: str, description: str) -> Path:
@@ -95,12 +101,17 @@ def text_to_wav(
     text: str,
     rate: int = 50,
     pitch: int = 50,
+    voice: str | None = None,
     *,
     cancelled: Callable[[], bool] | None = None,
 ) -> bytes:
     payload = text.encode("ascii", "replace")
     native_rate = 40 + round(max(0, min(100, rate)) * 9.6)
-    request = struct.pack("<III", len(payload), native_rate, _native_pitch(pitch)) + payload
+    voice_id = (voice or "fred").lower().replace(" ", "")
+    voice_index = _VOICES.get(voice_id, 0)
+    request = struct.pack(
+        "<IIII", len(payload), native_rate, max(0, min(100, pitch)), voice_index
+    ) + payload
     with _lock:
         process = _get_host()
         assert process.stdin is not None

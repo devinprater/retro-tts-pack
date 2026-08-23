@@ -44,7 +44,7 @@ command -v pw-play >/dev/null 2>&1 ||
 if [ "$download_assets" = ask ]; then
     if [ -t 0 ]; then
         printf '%s' \
-            "Download checksum-pinned BeSTSpeech and Prose 2000 assets from their GitHub releases? [y/N] "
+            "Download checksum-pinned optional engine assets (including Leopard MacinTalk)? [y/N] "
         read -r answer
         case "$answer" in y|Y|yes|YES) download_assets=yes ;; *) download_assets=no ;; esac
     else
@@ -52,7 +52,7 @@ if [ "$download_assets" = ask ]; then
     fi
 fi
 if [ "$download_assets" = yes ]; then
-    say "Downloading assets published by the BeSTSpeech and Prose 2000 projects."
+    say "Downloading checksum-pinned optional engine assets from their published sources."
     say "Their upstream terms still apply; continuing indicates you accept them."
     python3 "$ROOT/download-assets.py" "$ROOT/assets"
 fi
@@ -63,11 +63,112 @@ root_real=$(readlink -f "$ROOT")
 install_real=$(readlink -f "$INSTALL_DIR")
 if [ "$root_real" != "$install_real" ]; then
     for item in app bin config lib licenses vendor README.md CHANGELOG.md VERSION download-assets.py; do
-        [ ! -e "$ROOT/$item" ] || cp -a "$ROOT/$item" "$INSTALL_DIR/"
+        [ ! -e "$ROOT/$item" ] || {
+            if [ "$item" = bin ]; then
+                # Speech Dispatcher may auto-spawn while Orca is running and
+                # hold a module executable open. Replace flat bin entries by
+                # rename so reinstalling cannot fail with ETXTBSY.
+                mkdir -p "$INSTALL_DIR/bin"
+                for source_file in "$ROOT/bin/"*; do
+                    [ -e "$source_file" ] || continue
+                    target_file="$INSTALL_DIR/bin/$(basename "$source_file")"
+                    cp -a "$source_file" "$target_file.retro-new"
+                    mv -f "$target_file.retro-new" "$target_file"
+                done
+            else
+                cp -a "$ROOT/$item" "$INSTALL_DIR/"
+            fi
+        }
     done
     mkdir -p "$INSTALL_DIR/assets"
     if [ -d "$ROOT/assets" ]; then
         cp -an "$ROOT/assets/." "$INSTALL_DIR/assets/"
+    fi
+fi
+
+# Reuse assets from NVDA add-ons kept near the source tree.  In particular,
+# search through ../../ (and one level beyond it), since the distributable is
+# commonly run from speechd-tts/dist/retro-tts-pack while add-ons live at the
+# repository root.  Existing pack assets always win.
+find_addon() {
+    addon_name=$1
+    for search_dir in "$ROOT" "$ROOT/.." "$ROOT/../.." "$ROOT/../../.."; do
+        [ -d "$search_dir" ] || continue
+        found=$(find "$search_dir" -maxdepth 2 -type f -iname "$addon_name" -print -quit 2>/dev/null)
+        if [ -n "$found" ]; then
+            printf '%s\n' "$found"
+            return 0
+        fi
+    done
+    return 1
+}
+
+import_addon_asset() {
+    addon_pattern=$1
+    member=$2
+    destination=$3
+    [ -f "$destination" ] && return 0
+    addon=$(find_addon "$addon_pattern") || return 0
+    mkdir -p "$(dirname "$destination")"
+    if python3 -c 'import sys, zipfile
+archive, wanted = sys.argv[1:]
+wanted = wanted.replace("\\", "/")
+with zipfile.ZipFile(archive) as source:
+    name = next(n for n in source.namelist() if n.replace("\\", "/") == wanted)
+    sys.stdout.buffer.write(source.read(name))' "$addon" "$member" \
+       >"$destination.tmp" 2>/dev/null &&
+       [ -s "$destination.tmp" ]; then
+        mv "$destination.tmp" "$destination"
+        say "Imported $(basename "$destination") from $(basename "$addon")."
+    else
+        rm -f "$destination.tmp"
+    fi
+}
+
+ASSETS="$INSTALL_DIR/assets"
+import_addon_asset 'smoothtalker*.nvda-addon' 'synthDrivers\\_smoothtalker_engine\\engine.bin' "$ASSETS/smoothtalker/engine.bin"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_11K8.DLL' "$ASSETS/monologue/FB_11K8.DLL"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_22K16.DLL' "$ASSETS/monologue/FB_22K16.DLL"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_DEFLT.DIC' "$ASSETS/monologue/FB_DEFLT.DIC"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_NGN.EXE' "$ASSETS/monologue/FB_NGN.EXE"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_SPCH.DLL' "$ASSETS/monologue/FB_SPCH.DLL"
+    import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_TIMER.DLL' "$ASSETS/monologue/FB_TIMER.DLL"
+    import_addon_asset 'doubletalkpc*.nvda-addon' 'synthDrivers/doubletalkpc/doubletalkpc.bin' "$ASSETS/doubletalkpc/doubletalkpc.bin"
+    import_addon_asset 'bestspeech*.nvda-addon' 'synthDrivers/b32_tts.dll' "$ASSETS/bestspeech/b32_tts.dll"
+    for language in eng dut fre ger gre heb ita jpn pol por rus spa; do
+        import_addon_asset 'bestspeech*.nvda-addon' "synthDrivers/dll_$language.dll" "$ASSETS/bestspeech/dll_$language.dll"
+    done
+    import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/tibase32.dll' "$ASSETS/softvoice/tibase32.dll"
+    import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/tieng32.dll' "$ASSETS/softvoice/tieng32.dll"
+    import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/TISPAN32.DLL' "$ASSETS/softvoice/TISPAN32.DLL"
+    import_addon_asset 'amigaNarrator*.nvda-addon' 'synthDrivers/_amigaNarrator/narrator.device' "$ASSETS/amiganarrator/narrator.device"
+    import_addon_asset 'amigaNarrator*.nvda-addon' 'synthDrivers/_amigaNarrator/translator.library' "$ASSETS/amiganarrator/translator.library"
+    import_addon_asset 'amigaNarrator*.nvda-addon' 'synthDrivers/_amigaNarrator/cmudict.txt' "$ASSETS/amiganarrator/cmudict.txt"
+import_addon_asset 'WinTalker*.nvda-addon' 'synthDrivers/wintalker_data/x64/WinTalker.dll' "$ASSETS/wintalker/WinTalker.dll"
+import_addon_asset 'WinTalker*.nvda-addon' 'synthDrivers/wintalker_data/English.lex' "$ASSETS/wintalker/English.lex"
+import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker.obj.bin' "$ASSETS/echotalk/textalker.obj.bin"
+import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker.ram.bin' "$ASSETS/echotalk/textalker.ram.bin"
+import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.obj.bin' "$ASSETS/echotalk/textalker_v13.obj.bin"
+import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.ram.bin' "$ASSETS/echotalk/textalker_v13.ram.bin"
+
+if [ ! -d "$ASSETS/outspoken/outspoken-roms" ]; then
+    outspoken_archive=$(find_addon 'outspoken-roms.zip') || outspoken_archive=
+    if [ -n "$outspoken_archive" ]; then
+        mkdir -p "$ASSETS/outspoken"
+        python3 -c 'import pathlib, sys, zipfile
+archive, target = sys.argv[1:]
+root = pathlib.Path(target).resolve()
+with zipfile.ZipFile(archive) as source:
+    for info in source.infolist():
+        name = pathlib.PurePosixPath(info.filename.replace("\\", "/"))
+        if info.is_dir() or not name.parts or name.parts[0] != "outspoken-roms":
+            continue
+        relative = pathlib.Path(*name.parts)
+        output = root / relative
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if not output.exists():
+            output.write_bytes(source.read(info))' "$outspoken_archive" "$ASSETS/outspoken"
+        say "Imported OutSpoken ROM collection from $(basename "$outspoken_archive")."
     fi
 fi
 
@@ -76,9 +177,35 @@ cat >"$CLI" <<EOF
 INSTALL_DIR='$INSTALL_DIR'
 export PYTHONPATH="\$INSTALL_DIR/app/src:\$INSTALL_DIR/vendor\${PYTHONPATH:+:\$PYTHONPATH}"
 export LD_LIBRARY_PATH="\$INSTALL_DIR/vendor/unicorn/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
+export RETRO_TTS_SOFTVOICE_SHIM="\$INSTALL_DIR/lib/libsv_shim.so"
+export RETRO_TTS_SOFTVOICE_BASE_DLL="\$INSTALL_DIR/assets/softvoice/tibase32.dll"
+export RETRO_TTS_SOFTVOICE_LANGUAGE_DLL="\$INSTALL_DIR/assets/softvoice/tieng32.dll"
+export RETRO_TTS_SOFTVOICE_SPANISH_DLL="\$INSTALL_DIR/assets/softvoice/TISPAN32.DLL"
+export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
+export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
+export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
+export RETRO_TTS_OUTSPOKEN_ROMS="\$INSTALL_DIR/assets/outspoken/outspoken-roms"
 exec python3 -m retro_tts.cli "\$@"
 EOF
 chmod 755 "$CLI"
+
+# Speech Dispatcher starts GenericExecuteSynth once per utterance. Avoid a
+# fresh Python interpreter (roughly 40-50 ms on typical systems) on that hot
+# path when a C compiler and PipeWire are available. The regular Python CLI
+# remains installed for diagnostics, non-PipeWire systems, and manual use.
+SPEECHD_CLIENT="$CLI"
+CLIENT_SOURCE="$INSTALL_DIR/app/retro_tts_client.c"
+CLIENT_BINARY="$INSTALL_DIR/bin/retro-tts-client"
+if command -v cc >/dev/null 2>&1 && command -v pw-play >/dev/null 2>&1 &&
+   cc -O2 -Wall -Wextra -o "$CLIENT_BINARY.tmp" "$CLIENT_SOURCE"; then
+    chmod 755 "$CLIENT_BINARY.tmp"
+    mv "$CLIENT_BINARY.tmp" "$CLIENT_BINARY"
+    SPEECHD_CLIENT="$CLIENT_BINARY"
+    say "Enabled the low-latency native Speech Dispatcher client."
+else
+    rm -f "$CLIENT_BINARY.tmp"
+    warn "using the Python Speech Dispatcher client (install a C compiler and pw-play for lower onset latency)"
+fi
 
 LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 LEOPARD_BACKEND=wine
@@ -87,6 +214,10 @@ if [ -x "$INSTALL_DIR/bin/leopard_host" ] &&
     LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host"
     LEOPARD_BACKEND=native
 fi
+TIGER_HOST="$LEOPARD_HOST"
+TIGER_BACKEND="$LEOPARD_BACKEND"
+LION_HOST="$INSTALL_DIR/bin/panthera_host.exe"
+LION_BACKEND=wine
 
 cat >"$SYSTEMD_DIR/retro-tts.service" <<EOF
 [Unit]
@@ -103,10 +234,16 @@ Environment=RETRO_TTS_PROSE_ROMS=$INSTALL_DIR/assets/prose2000
 Environment=RETRO_TTS_DTALK_CLI=$INSTALL_DIR/bin/dtalk_cli
 Environment=RETRO_TTS_DTALK_ROM=$INSTALL_DIR/assets/doubletalkpc/doubletalkpc.bin
 Environment=RETRO_TTS_BESTSPEECH_SHIM=$INSTALL_DIR/lib/libbst_shim.so
+Environment=RETRO_TTS_BESTSPEECH_LANGUAGE_SHIM=$INSTALL_DIR/lib/libbst_lang_shim.so
 Environment=RETRO_TTS_BESTSPEECH_DLL=$INSTALL_DIR/assets/bestspeech/b32_tts.dll
 Environment=RETRO_TTS_SOFTVOICE_SHIM=$INSTALL_DIR/lib/libsv_shim.so
 Environment=RETRO_TTS_SOFTVOICE_BASE_DLL=$INSTALL_DIR/assets/softvoice/tibase32.dll
 Environment=RETRO_TTS_SOFTVOICE_LANGUAGE_DLL=$INSTALL_DIR/assets/softvoice/tieng32.dll
+Environment=RETRO_TTS_SOFTVOICE_SPANISH_DLL=$INSTALL_DIR/assets/softvoice/TISPAN32.DLL
+Environment=RETRO_TTS_ECHOTALK_LIB=$INSTALL_DIR/lib/libechotalk.$architecture.so
+Environment=RETRO_TTS_ECHOTALK_DATA=$INSTALL_DIR/assets/echotalk
+Environment=RETRO_TTS_OUTSPOKEN_HOST=$INSTALL_DIR/lib/libosp_host.$architecture.so
+Environment=RETRO_TTS_OUTSPOKEN_ROMS=$INSTALL_DIR/assets/outspoken/outspoken-roms
 Environment=RETRO_TTS_AMIGA_NARRATOR=$INSTALL_DIR/bin/narrator
 Environment=RETRO_TTS_AMIGA_DEVICE=$INSTALL_DIR/assets/amiganarrator/narrator.device
 Environment=RETRO_TTS_AMIGA_TRANSLATOR=$INSTALL_DIR/bin/translator
@@ -121,6 +258,14 @@ Environment=RETRO_TTS_LEOPARD_HOST=$LEOPARD_HOST
 Environment=RETRO_TTS_LEOPARD_BACKEND=$LEOPARD_BACKEND
 Environment=RETRO_TTS_LEOPARD_TREE=$INSTALL_DIR/assets/leopardspeech/leopardspeech-data
 Environment=RETRO_TTS_LEOPARD_VOICE=Alex
+Environment=RETRO_TTS_TIGER_HOST=$TIGER_HOST
+Environment=RETRO_TTS_TIGER_BACKEND=$TIGER_BACKEND
+Environment=RETRO_TTS_TIGER_TREE=$INSTALL_DIR/assets/tigerspeech/tigerspeech-data
+Environment=RETRO_TTS_TIGER_VOICE=Vicki
+Environment=RETRO_TTS_LION_HOST=$LION_HOST
+Environment=RETRO_TTS_LION_BACKEND=$LION_BACKEND
+Environment=RETRO_TTS_LION_TREE=$INSTALL_DIR/assets/lionspeech/lionspeech-data
+Environment=RETRO_TTS_LION_VOICE=Alex
 KillMode=mixed
 TimeoutStopSec=3
 
@@ -146,7 +291,6 @@ has_all() {
     done
 }
 
-ASSETS="$INSTALL_DIR/assets"
 if has_all "$ASSETS/smoothtalker/engine.bin"; then
     available_modules="$available_modules smoothtalker"
 else missing_modules="$missing_modules smoothtalker"; fi
@@ -182,6 +326,18 @@ if has_all "$ASSETS/amiganarrator/narrator.device" &&
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then
     available_modules="$available_modules amiganarrator"
 else missing_modules="$missing_modules amiganarrator"; fi
+if has_all \
+    "$ASSETS/echotalk/textalker.obj.bin" \
+    "$ASSETS/echotalk/textalker.ram.bin" \
+    "$ASSETS/echotalk/textalker_v13.obj.bin" \
+    "$ASSETS/echotalk/textalker_v13.ram.bin" \
+    "$INSTALL_DIR/lib/libechotalk.$architecture.so"; then
+    available_modules="$available_modules echotalk"
+else missing_modules="$missing_modules echotalk"; fi
+if [ -d "$ASSETS/outspoken/outspoken-roms" ] &&
+   [ -f "$INSTALL_DIR/lib/libosp_host.$architecture.so" ]; then
+    available_modules="$available_modules outspoken"
+else missing_modules="$missing_modules outspoken"; fi
 if [ "$architecture" = x86_64 ] &&
    has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
    command -v wine >/dev/null 2>&1; then
@@ -196,17 +352,31 @@ if [ "$architecture" = x86_64 ] &&
      { [ -f "$LEOPARD_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
     available_modules="$available_modules leopardspeech"
 else missing_modules="$missing_modules leopardspeech"; fi
+if [ "$architecture" = x86_64 ] &&
+   has_all \
+    "$ASSETS/tigerspeech/tigerspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
+    "$ASSETS/tigerspeech/tigerspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" \
+    "$INSTALL_DIR/bin/leopard_host.exe" &&
+   [ -d "$ASSETS/tigerspeech/tigerspeech-data/Speech/Voices" ] &&
+   command -v wine >/dev/null 2>&1; then
+    available_modules="$available_modules tigerspeech"
+else missing_modules="$missing_modules tigerspeech"; fi
+if [ "$architecture" = x86_64 ] &&
+   has_all \
+    "$ASSETS/lionspeech/lionspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
+    "$ASSETS/lionspeech/lionspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" \
+    "$ASSETS/lionspeech/lionspeech-data/libstdc++.6.0.9.dylib" \
+    "$ASSETS/lionspeech/lionspeech-data/libc++abi.dylib" \
+    "$INSTALL_DIR/bin/panthera_host.exe" &&
+   [ -d "$ASSETS/lionspeech/lionspeech-data/Speech/Voices" ] &&
+   command -v wine >/dev/null 2>&1; then
+    available_modules="$available_modules lionspeech"
+else missing_modules="$missing_modules lionspeech"; fi
 
 for module in $available_modules; do
     source="$INSTALL_DIR/config/modules/$module-generic.conf"
     target="$MODULE_DIR/$module-generic.conf"
-    if [ "$module" = leopardspeech ]; then
-        sed -e "s|retro-tts|$CLI|g" \
-            -e "s|leopard_client|$INSTALL_DIR/bin/leopard_client|g" \
-            "$source" >"$target"
-    else
-        sed "s|retro-tts|$CLI|g" "$source" >"$target"
-    fi
+    sed "s|retro-tts|$SPEECHD_CLIENT|g" "$source" >"$target"
 done
 
 SPEECHD_CONF="$SPEECHD_DIR/speechd.conf"
@@ -225,8 +395,34 @@ if [ -f "$SPEECHD_CONF" ]; then
     sed -i '/# BEGIN RETRO-TTS-PACK/,/# END RETRO-TTS-PACK/d' "$SPEECHD_CONF"
     {
         printf '\n# BEGIN RETRO-TTS-PACK\n'
+        # Once any AddModule is explicit, Speech Dispatcher stops discovering
+        # its standard modules automatically.  Register the installed native
+        # modules too, without touching DefaultModule or language preferences.
+        for module in espeak-ng eloquence festival openjtalk; do
+            module_binary="sd_$module"
+            module_config="$module.conf"
+            for libexec_dir in \
+                /usr/lib/speech-dispatcher/speech-dispatcher-modules \
+                /usr/libexec/speech-dispatcher-modules \
+                "$HOME/.local/libexec/speech-dispatcher-modules"; do
+                if [ -x "$libexec_dir/$module_binary" ] &&
+                   { [ -f "$MODULE_DIR/$module_config" ] ||
+                     [ -f "/etc/speech-dispatcher/modules/$module_config" ] ||
+                     [ -f "/usr/share/speech-dispatcher/conf/modules/$module_config" ]; }; then
+                    printf 'AddModule "%s" "%s" "%s"\n' "$module" "$module_binary" "$module_config"
+                    break
+                fi
+            done
+        done
+        retro_generic=sd_generic
+        if [ -x "$INSTALL_DIR/bin/sd_retro_generic.$architecture" ]; then
+            retro_generic="$INSTALL_DIR/bin/sd_retro_generic.$architecture"
+        else
+            warn "Retro generic module is unavailable for $architecture; Orca may show generic person names"
+        fi
         for module in $available_modules; do
-            printf 'AddModule "%s" "sd_generic" "%s-generic.conf"\n' "$module" "$module"
+            printf 'AddModule "%s" "%s" "%s-generic.conf"\n' \
+                "$module" "$retro_generic" "$module"
         done
         printf '# END RETRO-TTS-PACK\n'
     } >>"$SPEECHD_CONF"
@@ -238,8 +434,9 @@ if [ "${RETRO_TTS_SKIP_SYSTEMD:-0}" != 1 ] &&
    command -v systemctl >/dev/null 2>&1 &&
    systemctl --user show-environment >/dev/null 2>&1; then
     systemctl --user daemon-reload
-    if systemctl --user enable --now retro-tts.service; then
-        say "Persistent renderer enabled and started."
+    if systemctl --user enable retro-tts.service >/dev/null 2>&1 &&
+       systemctl --user restart retro-tts.service; then
+        say "Persistent renderer enabled and restarted."
     else
         warn "systemd could not start retro-tts.service; see README.md"
     fi

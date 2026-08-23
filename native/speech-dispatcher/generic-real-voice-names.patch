@@ -1,0 +1,22 @@
+--- a/src/modules/generic.c
++++ b/src/modules/generic.c
+@@ -213,7 +213,20 @@ int module_init(char **status_info)
+ 
+ SPDVoice **module_list_voices(void)
+ {
+-	return module_list_registered_voices();
++	SPDVoice **voices = module_list_registered_voices();
++	int i;
++
++	/* Orca presents variant in preference to name. AddVoice's variant is a
++	 * generic role (MALE1, FEMALE1, ...), so duplicate roles make distinct
++	 * synthesizer voices appear to have the same name. Keep those roles in
++	 * generic's internal voice map, but omit them from the public list so ATs
++	 * present the real AddVoice name. */
++	for (i = 0; voices && voices[i]; i++)
++		voices[i]->variant = NULL;
++
++	return voices;
+ }
+ 
+ int module_speak(gchar * data, size_t bytes, SPDMessageType msgtype)

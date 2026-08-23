@@ -9,19 +9,18 @@ change the license of another component.
 
 Original commercial synthesizer DLLs, ROMs, firmware, dictionaries, Amiga
 devices, and related engine data are not part of this repository or its
-release archive. The optional downloader only retrieves checksum-pinned files
-that the BeSTSpeech wrapper and Prose 2000 projects publish in their own GitHub
-releases. Users remain responsible for complying with applicable upstream
-terms.
+release archive. The optional downloader retrieves checksum-pinned packages
+from engine projects and their DECtalk.nu/datajake mirrors. Users remain
+responsible for complying with applicable upstream terms.
 
-WinTalker support includes only the open integration host. `WinTalker.dll`,
-`English.lex`, and the MacInTalk voice data must be supplied separately by the
-user and are not downloaded or redistributed by this project.
+WinTalker support includes only the open integration host. `WinTalker.dll` and
+`English.lex` are installed from the separately published NVDA add-on when the
+optional downloader is used; they are not redistributed in release archives.
 
 Leopard Speech support includes the open integration host from tiger-speech.
-The Mac OS X engine, SpeechDictionary framework, and voice data—including
-Alex—must be supplied separately by the user and are not redistributed by this
-project.
+The optional downloader can install the separately published Mac OS X engine,
+SpeechDictionary framework, and voices, but they are not redistributed in
+release archives.
 
 Important upstream projects include:
 
@@ -32,3 +31,6 @@ Important upstream projects include:
 - <https://github.com/daiverd/rusty_tts>
 - <https://github.com/unicorn-engine/unicorn>
 - <https://github.com/tgeczy/tiger-speech>
+- <https://github.com/jaybird110127/echotalk>
+- <https://github.com/tgeczy/outspoken-nvda>
+- <https://github.com/kstenerud/Musashi>
