@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.2 - 2026-08-24
 
 - Stream L&H and Centigram TruVoice in phrase chunks so Orca can begin playback
   while the rest of an utterance is still being synthesized. L&H follows the
