@@ -222,7 +222,7 @@ def main() -> int:
         # a host response in place; its raw streaming path can retain the
         # shared render lock after rapid Orca cancellation and mute all three
         # generations. The client-side player remains directly cancellable.
-        daemon_plays = args.engine == "amiganarrator" and args.output is None
+        daemon_plays = args.engine in ("amiganarrator", "lhtts", "truevoice") and args.output is None
         wav = _persistent_render(
             args.engine, text, args.rate, args.pitch, voice=args.voice,
             volume=args.volume,

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Stream L&H and Centigram TruVoice in phrase chunks so Orca can begin playback
+  while the rest of an utterance is still being synthesized. L&H follows the
+  text's punctuation to preserve continuous prosody; TrueVoice retains shorter
+  safety chunks because its original engine rejects some longer strings.
+- Prefer punctuation before TrueVoice's safety limit so short bullets and
+  labels are not split at an audible arbitrary word boundary.
+- Preserve natural comma, semicolon, and sentence pauses at L&H streaming joins
+  instead of collapsing each separately rendered boundary to a few milliseconds.
+- Remove modern UI chevrons before legacy codepage conversion so Centigram
+  TrueVoice does not pronounce `›` as an "uh"-like replacement character.
+- Centralize codepage-safe legacy encoding for TrueVoice and L&H, preventing
+  box drawing, emoji, and unsupported Unicode symbols from becoming spoken
+  replacement bytes while preserving supported language letters.
+- Map Orca's neutral TrueVoice pitch to the original per-voice defaults stored
+  in `TV_ENG32.DLL`; Peter now uses the engine's pitch 85 instead of 150.
+- Make the recreated `cgrm_spk` preserve the selected voice's original pitch
+  and volume when no explicit overrides are given.
+
 ## 1.1.1 - 2026-08-24
 
 - Isolated each Centigram TruVoice utterance in the recreated `cgrm_spk`

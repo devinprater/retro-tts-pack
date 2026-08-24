@@ -6,6 +6,8 @@ import subprocess
 import wave
 from pathlib import Path
 
+from ...text import legacy_bytes
+
 
 VOICES = {
     "Peter": 0,
@@ -20,10 +22,22 @@ VOICES = {
     "Julia": 9,
 }
 DEFAULT_VOICE = "Peter"
+# TV_ENG32.DLL's own per-voice pitch table at image address 0x100BBE50.
+# These values are restored by tts_Reset and are what the original cgrm_spk
+# uses when no embedded {{pitch}} command is supplied.
+DEFAULT_PITCHES = (85, 50, 125, 73, 129, 89, 117, 203, 208, 152)
 
 
 def _percent(value: int) -> int:
     return max(0, min(100, value))
+
+
+def _native_pitch(value: int, voice_id: int) -> int:
+    percent = _percent(value)
+    default = DEFAULT_PITCHES[voice_id]
+    if percent <= 50:
+        return 50 + round(percent * (default - 50) / 50)
+    return default + round((percent - 50) * (400 - default) / 50)
 
 
 def _combine(parts: list[bytes]) -> bytes:
@@ -51,14 +65,7 @@ def text_to_wav(
         VOICES[DEFAULT_VOICE],
     )
     native_rate = 50 + round(_percent(rate) * 2.0)
-    # The recovered cgrm_spk default is 150. Keep that at Orca's neutral
-    # midpoint, with finer control below it and the remaining range above it.
-    pitch_percent = _percent(pitch)
-    native_pitch = (
-        50 + round(pitch_percent * 2)
-        if pitch_percent <= 50
-        else 150 + round((pitch_percent - 50) * 5)
-    )
+    native_pitch = _native_pitch(pitch, voice_id)
     native_volume = round(_percent(volume) * 16 / 100)
     executable = Path(os.environ.get("RETRO_TTS_TRUEVOICE_CLI", "bin/cgrm_spk"))
     data = Path(os.environ.get("RETRO_TTS_TRUEVOICE_DATA", "assets/truevoice"))
@@ -69,7 +76,7 @@ def text_to_wav(
                 str(executable.resolve()), "--data", str(data.resolve()),
                 "--filename", "-", "--voice", str(voice_id),
                 "--rate", str(native_rate), "--pitch", str(native_pitch),
-                "--volume", str(native_volume), fragment,
+                "--volume", str(native_volume), legacy_bytes(fragment),
             ],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )

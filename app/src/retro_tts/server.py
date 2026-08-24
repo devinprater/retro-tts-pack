@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import io
 import os
 import queue
 import select
@@ -11,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import wave
 from pathlib import Path
 
 from .cli import _receive_exact, _render
@@ -28,6 +30,10 @@ _panthera_playback: subprocess.Popen[bytes] | None = None
 _softvoice_lock = threading.Lock()
 _softvoice_workers: dict[str, tuple[subprocess.Popen[bytes], int]] = {}
 _SOFTVOICE_WORKER_LIMIT = 10
+_legacy_state_lock = threading.Lock()
+_legacy_render_lock = threading.Lock()
+_legacy_cancel: threading.Event | None = None
+_legacy_playback: subprocess.Popen[bytes] | None = None
 
 
 def _stop_softvoice_worker(language: str) -> None:
@@ -206,6 +212,119 @@ def _new_panthera_request() -> threading.Event:
     return cancelled
 
 
+def _new_legacy_request() -> threading.Event:
+    global _legacy_cancel, _legacy_playback
+    cancelled = threading.Event()
+    with _legacy_state_lock:
+        if _legacy_cancel is not None:
+            _legacy_cancel.set()
+        if _legacy_playback is not None and _legacy_playback.poll() is None:
+            _legacy_playback.terminate()
+        _legacy_playback = None
+        _legacy_cancel = cancelled
+    return cancelled
+
+
+def _phrase_chunks(text: str, *, aggressive: bool = True) -> list[str]:
+    """Split at prosodic boundaries; TrueVoice also needs short safeguards."""
+    words = text.split()
+    chunks: list[str] = []
+    start = 0
+    target = 8 if aggressive else 24
+    for index, word in enumerate(words, 1):
+        count = index - start
+        boundary = word.rstrip('")}]:').endswith(('.', '!', '?', ',', ';'))
+        if aggressive and count >= 4 and ("://" in word or word.count(".") >= 2):
+            boundary = True
+        if ((boundary and (aggressive or count >= 2)) or count >= target):
+            chunks.append(" ".join(words[start:index]))
+            start = index
+            target = 10 if aggressive else 24
+    if start < len(words):
+        chunks.append(" ".join(words[start:]))
+    return chunks
+
+
+def _lh_join_pause_ms(phrase: str) -> int:
+    """Restore punctuation silence lost at separately rendered WAV edges."""
+    ending = phrase.rstrip('")}]:')[-1:]
+    if ending == ',':
+        return 90
+    if ending in (';', ':'):
+        return 130
+    if ending in ('.', '!', '?'):
+        return 170
+    return 20
+
+
+def _stream_legacy(
+    connection: socket.socket,
+    request: dict[str, object],
+    cancelled: threading.Event,
+) -> None:
+    """Render L&H/TrueVoice phrases while an earlier phrase is playing."""
+    global _legacy_playback
+    with _legacy_render_lock:
+        if cancelled.is_set() or not _connected(connection):
+            return
+        player = shutil.which("pw-play")
+        if not player:
+            raise RuntimeError("pw-play is required for low-latency legacy speech")
+        playback = subprocess.Popen(
+            [
+                player, "--raw", "--rate", "11025", "--channels", "1",
+                "--format", "s16", "--latency", "10ms", "-",
+            ],
+            stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, bufsize=0,
+        )
+        with _legacy_state_lock:
+            if _legacy_cancel is cancelled and not cancelled.is_set():
+                _legacy_playback = playback
+            else:
+                playback.terminate()
+        assert playback.stdin is not None
+        try:
+            chunks = _phrase_chunks(
+                str(request["text"]),
+                aggressive=request["engine"] == "truevoice",
+            )
+            for index, phrase in enumerate(chunks):
+                if cancelled.is_set() or not _connected(connection):
+                    break
+                rendered = _render(
+                    str(request["engine"]), phrase,
+                    int(request.get("rate", 50)),
+                    int(request.get("pitch", 50)),
+                    request.get("voice"), int(request.get("volume", 90)),
+                )
+                with wave.open(io.BytesIO(rendered), "rb") as source:
+                    pcm = source.readframes(source.getnframes())
+                try:
+                    playback.stdin.write(pcm)
+                    if request["engine"] == "lhtts" and index + 1 < len(chunks):
+                        pause_frames = 11_025 * _lh_join_pause_ms(phrase) // 1000
+                        playback.stdin.write(b"\0\0" * pause_frames)
+                except BrokenPipeError:
+                    break
+            if not cancelled.is_set() and _connected(connection):
+                playback.stdin.close()
+                playback.wait(timeout=30)
+        finally:
+            if playback.poll() is None:
+                playback.terminate()
+                try:
+                    playback.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    playback.kill()
+                    playback.wait()
+            if not playback.stdin.closed:
+                playback.stdin.close()
+            with _legacy_state_lock:
+                if _legacy_playback is playback:
+                    _legacy_playback = None
+
+
 def _stream_panthera_unlocked(
     connection: socket.socket,
     request: dict[str, object],
@@ -376,6 +495,9 @@ def _serve(connection: socket.socket) -> None:
             request["text"] = normalize_text(str(request["text"]))
             if request.get("play") and request["engine"] == "amiganarrator":
                 _stream_amiga(connection, request, _new_amiga_request())
+                wav = b""
+            elif request.get("play") and request["engine"] in ("lhtts", "truevoice"):
+                _stream_legacy(connection, request, _new_legacy_request())
                 wav = b""
             elif request.get("play") and request["engine"] in (
                 "tigerspeech", "leopardspeech", "lionspeech"

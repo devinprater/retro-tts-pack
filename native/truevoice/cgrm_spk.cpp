@@ -27,14 +27,14 @@ static void usage(const char *program) {
         "  --voice 0..9       Peter, Sidney, Eddie, Douglas, Biff, Amos,\n"
         "                     Melvin, Alex, Wanda, or Julia\n"
         "  --rate 50..250     speaking rate (default 150)\n"
-        "  --pitch 50..400    pitch (default 150)\n"
+        "  --pitch 50..400    pitch (default: original voice setting)\n"
         "  --volume 0..16     volume (default 14)\n", program);
 }
 
 int main(int argc, char **argv) {
     const char *data = nullptr;
     const char *filename = nullptr;
-    int voice = 0, rate = 150, pitch = 150, volume = 14;
+    int voice = 0, rate = 150, pitch = 0, volume = 16;
     std::string text;
     for (int i = 1; i < argc; ++i) {
         auto value = [&](const char *option) -> const char * {

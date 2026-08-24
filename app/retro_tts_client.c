@@ -99,10 +99,13 @@ int main(int argc, char **argv) {
     size_t json_size = strlen(e_engine) + strlen(e_text) + strlen(e_voice) + 192;
     char *json = malloc(json_size);
     if (!json) return 1;
+    const int daemon_plays = !output &&
+        (!strcmp(engine, "lhtts") || !strcmp(engine, "truevoice"));
     int json_length = snprintf(json, json_size,
         "{\"engine\":\"%s\",\"text\":\"%s\",\"rate\":%d,\"pitch\":%d,"
-        "\"volume\":%d,\"voice\":\"%s\",\"play\":false}",
-        e_engine, e_text, atoi(rate), atoi(pitch), atoi(volume), e_voice);
+        "\"volume\":%d,\"voice\":\"%s\",\"play\":%s}",
+        e_engine, e_text, atoi(rate), atoi(pitch), atoi(volume), e_voice,
+        daemon_plays ? "true" : "false");
     free(e_engine); free(e_text); free(e_voice);
     if (json_length < 0 || (size_t)json_length >= json_size) return 1;
 
@@ -137,6 +140,7 @@ int main(int argc, char **argv) {
     if (header[0]) {
         fwrite(wav, 1, response_length, stderr); fputc('\n', stderr); free(wav); return failure;
     }
+    if (daemon_plays) { free(wav); return 0; }
     if (output) {
         int out = open(output, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         int result = out < 0 || write_all(out, wav, response_length);

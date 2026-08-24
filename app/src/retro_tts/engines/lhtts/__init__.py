@@ -10,6 +10,8 @@ import wave
 from array import array
 from pathlib import Path
 
+from ...text import legacy_bytes
+
 
 SAMPLE_RATE = 11_025
 
@@ -176,7 +178,7 @@ def text_to_wav(
     del pitch, volume  # The recovered 6.x driver currently uses native pitch/volume.
     global _selected
     language, voice_id = _resolve_voice(voice)
-    payload = text.encode(LANG_CODEPAGES.get(language, "cp1252"), "replace")
+    payload = legacy_bytes(text, LANG_CODEPAGES.get(language, "cp1252"))
     pcm = bytearray()
 
     @_SAMPLE_CB
