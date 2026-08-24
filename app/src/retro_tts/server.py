@@ -363,7 +363,13 @@ def _serve(connection: socket.socket) -> None:
     with connection:
         try:
             length = struct.unpack("!I", _receive_exact(connection, 4))[0]
-            request = json.loads(_receive_exact(connection, length))
+            # sd_generic occasionally forwards legacy 8-bit punctuation even
+            # with GenericDefaultCharset set to UTF-8. A strict bytes decode
+            # discarded the entire utterance (notably in EchoTalk and
+            # OutSpoken). Preserve valid UTF-8 and replace only malformed
+            # bytes so one character cannot mute a screen-reader sentence.
+            payload = _receive_exact(connection, length).decode("utf-8", "replace")
+            request = json.loads(payload)
             # Keep normalization in the persistent renderer so lightweight
             # clients and the Python CLI produce identical vintage-engine
             # input without duplicating these Unicode rules.
@@ -420,7 +426,11 @@ def _serve(connection: socket.socket) -> None:
                 )
                 wav = shorten_wav_pauses(wav)
             elif request["engine"] == "softvoice":
-                wav = _render_softvoice(request)
+                # The worker path bypasses cli._render(), where other engines
+                # receive the standard 30% pause policy. Apply it here too so
+                # SoftVoice does not retain multi-second trailing pauses
+                # between rapid Orca utterances.
+                wav = shorten_wav_pauses(_render_softvoice(request))
             else:
                 wav = _render(
                     request["engine"],

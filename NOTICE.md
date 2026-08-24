@@ -18,9 +18,10 @@ WinTalker support includes only the open integration host. `WinTalker.dll` and
 optional downloader is used; they are not redistributed in release archives.
 
 Leopard Speech support includes the open integration host from tiger-speech.
-The optional downloader can install the separately published Mac OS X engine,
-SpeechDictionary framework, and voices, but they are not redistributed in
-release archives.
+The optional downloader can install separately published Tiger, Leopard, and
+Lion Mac OS X engines, SpeechDictionary frameworks, and voices from
+DECtalk.nu's Apple directory, but they are not redistributed in release
+archives.
 
 Important upstream projects include:
 

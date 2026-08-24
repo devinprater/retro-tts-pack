@@ -74,6 +74,16 @@ def _render(
     elif engine == "softvoice":
         from .engines.softvoice import text_to_wav as softvoice_to_wav
         wav = softvoice_to_wav(text, voice=voice, rate=rate)
+    elif engine == "lhtts":
+        from .engines.lhtts import text_to_wav as lhtts_to_wav
+        wav = lhtts_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
+    elif engine == "truevoice":
+        from .engines.truevoice import text_to_wav as truevoice_to_wav
+        wav = truevoice_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
     elif engine == "wintalker":
         from .engines.wintalker import text_to_wav as wintalker_to_wav
         wav = wintalker_to_wav(text, rate=rate, pitch=pitch, voice=voice)
@@ -181,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
             "sam", "stspeech", "smoothtalker", "monologue", "prose2000",
             "doubletalkpc",
             "bestspeech", "softvoice",
+            "lhtts", "truevoice",
             "amiganarrator",
             "wintalker",
             "echotalk", "outspoken",

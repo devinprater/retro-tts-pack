@@ -1,3 +1,3 @@
 """Portable retro speech engines for Speech Dispatcher."""
 
-__version__ = "0.4.1"
+__version__ = "1.1.0"

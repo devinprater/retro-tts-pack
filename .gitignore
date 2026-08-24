@@ -6,5 +6,9 @@ __pycache__/
 # Commercial engine assets are local inputs, never repository content.
 assets/**/*
 !assets/**/.keep
+!assets/lhtts/
+!assets/lhtts/.keep
+!assets/truevoice/
+!assets/truevoice/.keep
 !assets/monologue/argclean.json
 !assets/monologue/ds_sensitive.json

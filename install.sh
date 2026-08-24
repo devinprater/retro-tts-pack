@@ -125,6 +125,61 @@ with zipfile.ZipFile(archive) as source:
     fi
 }
 
+import_zip_asset() {
+    archive_pattern=$1
+    member=$2
+    destination=$3
+    [ -f "$destination" ] && return 0
+    archive=$(find_addon "$archive_pattern") || return 0
+    mkdir -p "$(dirname "$destination")"
+    if python3 -c 'import sys, zipfile
+archive, wanted = sys.argv[1:]
+with zipfile.ZipFile(archive) as source:
+    name = next(n for n in source.namelist()
+                if n.replace("\\", "/").casefold() == wanted.casefold())
+    sys.stdout.buffer.write(source.read(name))' "$archive" "$member" \
+       >"$destination.tmp" 2>/dev/null && [ -s "$destination.tmp" ]; then
+        mv "$destination.tmp" "$destination"
+        say "Imported $(basename "$destination") from $(basename "$archive")."
+    else
+        rm -f "$destination.tmp"
+    fi
+}
+
+extract_cab_dlls() {
+    archive_pattern=$1
+    destination=$2
+    archive=$(find_addon "$archive_pattern") || return 0
+    work=$(mktemp -d "${TMPDIR:-/tmp}/retro-tts-cab.XXXXXX")
+    if command -v 7z >/dev/null 2>&1; then
+        # L&H used inconsistent .DLL/.dll casing between language packs.
+        # Extract the small CAB payload and filter DLLs below.
+        7z e -y -o"$work" "$archive" >/dev/null 2>&1 || true
+    elif command -v cabextract >/dev/null 2>&1; then
+        cabextract -q -d "$work" "$archive" >/dev/null 2>&1 || true
+    else
+        warn "cannot extract $(basename "$archive"); install 7z/cabextract or copy its DLLs into $destination"
+        rm -rf "$work"
+        return 0
+    fi
+    mkdir -p "$destination"
+    imported=0
+    for dll in "$work/"*.DLL "$work/"*.dll; do
+        [ -f "$dll" ] || continue
+        case $(basename "$dll" | tr '[:lower:]' '[:upper:]') in
+            ADVPACK.DLL|W95INF16.DLL|W95INF32.DLL|LHSAPI40.DLL) continue ;;
+        esac
+        normalized=$(basename "$dll" | tr '[:lower:]' '[:upper:]')
+        target="$destination/$normalized"
+        if [ ! -f "$target" ]; then
+            cp "$dll" "$target"
+            imported=$((imported + 1))
+        fi
+    done
+    rm -rf "$work"
+    [ "$imported" -eq 0 ] || say "Imported $imported DLLs from $(basename "$archive")."
+}
+
 ASSETS="$INSTALL_DIR/assets"
 import_addon_asset 'smoothtalker*.nvda-addon' 'synthDrivers\\_smoothtalker_engine\\engine.bin' "$ASSETS/smoothtalker/engine.bin"
     import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_11K8.DLL' "$ASSETS/monologue/FB_11K8.DLL"
@@ -150,6 +205,30 @@ import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker.obj.b
 import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker.ram.bin' "$ASSETS/echotalk/textalker.ram.bin"
 import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.obj.bin' "$ASSETS/echotalk/textalker_v13.obj.bin"
 import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.ram.bin' "$ASSETS/echotalk/textalker_v13.ram.bin"
+
+# Centigram TruVoice 5.10 Build 16 is preferred.  The Microsoft installer's
+# Build 15 payload is accepted as a fallback and normalized to the runtime
+# filename expected by the adapter.
+import_zip_asset 'cgrm_spk-win32.zip' 'cgrm_spk-win32/TV_ENG32.DLL' "$ASSETS/truevoice/TV_ENG32.DLL"
+if [ ! -f "$ASSETS/truevoice/TV_ENG32.DLL" ]; then
+    truevoice_installer=$(find_addon 'TruVoice_new.exe') || truevoice_installer=
+    if [ -n "$truevoice_installer" ] && command -v 7z >/dev/null 2>&1; then
+        truevoice_work=$(mktemp -d "${TMPDIR:-/tmp}/retro-tts-truevoice.XXXXXX")
+        if 7z e -y -o"$truevoice_work" "$truevoice_installer" 'TV_EN32P.DLL' >/dev/null 2>&1 &&
+           [ -f "$truevoice_work/TV_EN32P.DLL" ]; then
+            mkdir -p "$ASSETS/truevoice"
+            cp "$truevoice_work/TV_EN32P.DLL" "$ASSETS/truevoice/TV_ENG32.DLL"
+            say "Imported TV_ENG32.DLL from $(basename "$truevoice_installer")."
+        fi
+        rm -rf "$truevoice_work"
+    fi
+fi
+
+# The L&H TTS3000 packages are Microsoft CAB self-extractors.  Flattening the
+# DLLs is intentional: the native shim resolves every plugin by basename.
+for language in dun eng enu frf ged iti jpj kok ptb rur spe; do
+    extract_cab_dlls "lhtts$language.exe" "$ASSETS/lhtts"
+done
 
 if [ ! -d "$ASSETS/outspoken/outspoken-roms" ]; then
     outspoken_archive=$(find_addon 'outspoken-roms.zip') || outspoken_archive=
@@ -181,6 +260,10 @@ export RETRO_TTS_SOFTVOICE_SHIM="\$INSTALL_DIR/lib/libsv_shim.so"
 export RETRO_TTS_SOFTVOICE_BASE_DLL="\$INSTALL_DIR/assets/softvoice/tibase32.dll"
 export RETRO_TTS_SOFTVOICE_LANGUAGE_DLL="\$INSTALL_DIR/assets/softvoice/tieng32.dll"
 export RETRO_TTS_SOFTVOICE_SPANISH_DLL="\$INSTALL_DIR/assets/softvoice/TISPAN32.DLL"
+export RETRO_TTS_LHTTS_SHIM="\$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"
+export RETRO_TTS_LHTTS_DATA="\$INSTALL_DIR/assets/lhtts"
+export RETRO_TTS_TRUEVOICE_SHIM="\$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"
+export RETRO_TTS_TRUEVOICE_DATA="\$INSTALL_DIR/assets/truevoice"
 export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
 export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
 export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
@@ -240,6 +323,10 @@ Environment=RETRO_TTS_SOFTVOICE_SHIM=$INSTALL_DIR/lib/libsv_shim.so
 Environment=RETRO_TTS_SOFTVOICE_BASE_DLL=$INSTALL_DIR/assets/softvoice/tibase32.dll
 Environment=RETRO_TTS_SOFTVOICE_LANGUAGE_DLL=$INSTALL_DIR/assets/softvoice/tieng32.dll
 Environment=RETRO_TTS_SOFTVOICE_SPANISH_DLL=$INSTALL_DIR/assets/softvoice/TISPAN32.DLL
+Environment=RETRO_TTS_LHTTS_SHIM=$INSTALL_DIR/lib/liblhtts_shim.$architecture.so
+Environment=RETRO_TTS_LHTTS_DATA=$INSTALL_DIR/assets/lhtts
+Environment=RETRO_TTS_TRUEVOICE_SHIM=$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so
+Environment=RETRO_TTS_TRUEVOICE_DATA=$INSTALL_DIR/assets/truevoice
 Environment=RETRO_TTS_ECHOTALK_LIB=$INSTALL_DIR/lib/libechotalk.$architecture.so
 Environment=RETRO_TTS_ECHOTALK_DATA=$INSTALL_DIR/assets/echotalk
 Environment=RETRO_TTS_OUTSPOKEN_HOST=$INSTALL_DIR/lib/libosp_host.$architecture.so
@@ -321,6 +408,20 @@ else missing_modules="$missing_modules bestspeech"; fi
 if has_all "$ASSETS/softvoice/tibase32.dll" "$ASSETS/softvoice/tieng32.dll"; then
     available_modules="$available_modules softvoice"
 else missing_modules="$missing_modules softvoice"; fi
+if has_all \
+    "$ASSETS/lhtts/TTSMGR32.DLL" \
+    "$ASSETS/lhtts/TTSDCT32.DLL" \
+    "$ASSETS/lhtts/ENUG2P60.DLL" \
+    "$ASSETS/lhtts/ENUCT260.DLL" \
+    "$ASSETS/lhtts/ENUVM160.DLL" \
+    "$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"; then
+    available_modules="$available_modules lhtts"
+else missing_modules="$missing_modules lhtts"; fi
+if has_all \
+    "$ASSETS/truevoice/TV_ENG32.DLL" \
+    "$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"; then
+    available_modules="$available_modules truevoice"
+else missing_modules="$missing_modules truevoice"; fi
 if has_all "$ASSETS/amiganarrator/narrator.device" &&
    { [ -f "$ASSETS/amiganarrator/translator.library" ] ||
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then

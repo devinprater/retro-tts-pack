@@ -6,6 +6,8 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -14,6 +16,22 @@ from pathlib import Path
 
 
 DOWNLOADS = (
+    {
+        "name": "Centigram TruVoice 5.10 Build 16 (DECtalk.nu package)",
+        "url": (
+            "https://dectalk.nu/Software%20and%20Manuals/Software/"
+            "Centigram/cgrm_spk-win32.zip"
+        ),
+        "archive_sha256": (
+            "9d295f48e313c92ee4232b15a7a67ff9829d39ad47ca3b55599844bddb008b5c"
+        ),
+        "files": {
+            "cgrm_spk-win32/TV_ENG32.DLL": (
+                "truevoice/TV_ENG32.DLL",
+                "fcb4e8dc71dafb8b4b3acbe90db8ad87fde470e6da9ef6649a5fba2f1178b1ea",
+            ),
+        },
+    },
     {
         "name": "BeSTSpeech 2025.5 binary release",
         "url": (
@@ -226,29 +244,67 @@ DOWNLOADS = (
     },
     {
         "name": "OutSpoken MacinTalk ROM collection (DECtalk.nu mirror)",
-        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Miscellaneous/outspoken-roms.zip",
-        "archive_sha256": "f4573637b651f7fc2f0201b02c685894f62ad41bb2badd718f94bf474ed7275e",
-        "tree": ("outspoken-roms/", "outspoken/outspoken-roms"),
+        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/outspoken.zip",
+        "archive_sha256": "193857d71d000d56803fd6a90d8941b02fea56484d075324a41b61130103a9dd",
+        "tree_candidates": (("outspoken/", "outspoken-roms/"), "outspoken/outspoken-roms"),
     },
     {
         "name": "Leopard MacinTalk data (DECtalk.nu package)",
-        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Miscellaneous/leopardspeech-data.zip",
+        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/leopard.zip",
         "archive_sha256": (
-            "ad678e5fb09ed1082a6977fc88d1fac2dd43212d5eabceb114ecbd8d6ea01233"
+            "d830eb0306fbc0044041a71f2eac16412af875aade2ac124b1ae5d30a045c76b"
         ),
-        "tree": (
-            "leopardspeech-data/",
+        "tree_candidates": (
+            ("leopard/", "leopardspeech-data/"),
             "leopardspeech/leopardspeech-data",
         ),
     },
     {
         "name": "Tiger MacinTalk data (DECtalk.nu package)",
-        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Miscellaneous/tigerspeech-data.zip",
+        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/tiger.zip",
         "archive_sha256": (
-            "887ce60fc83d968b1d1de580ec0a83855b087b985b2125cb1fa6fc07d2602fbc"
+            "681da8c2da2be4161659e4374db3b2cd4b424e86ff2b29f5fa0f886900cd0f3e"
         ),
-        "tree": ("tigerspeech-data/", "tigerspeech/tigerspeech-data"),
+        "tree_candidates": (("tiger/", "tigerspeech-data/"), "tigerspeech/tigerspeech-data"),
     },
+    {
+        "name": "Lion MacinTalk data (DECtalk.nu package)",
+        "url": "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/lion.zip",
+        "archive_sha256": (
+            "c6ee230e556bd5722407fdd58e73701ac8a696822c53c919ccf2be6c6e58936c"
+        ),
+        "tree_candidates": (
+            ("lion/", "lionspeech-data/"),
+            "lionspeech/lionspeech-data",
+        ),
+    },
+)
+
+LHTTS3000_PACKAGES = {
+    "lhttsdun.exe": "19dde3525a1e50c920daa858286f049d67438c226edf68fdab5a1d1ece6a3969",
+    "lhttseng.exe": "a7350e4e2e0ffb22dfa8386791b3de6a1951c8d4e53fade5f0302f84cb01b4f8",
+    "lhttsenu.exe": "407572e399b767da41565deff3a801432ff746dea8a6c72e321f9f11a95da5c4",
+    "lhttsfrf.exe": "cd9f3e92a1d9f91a58c7e0cfc3f7f6a3f496a7964986177ccd92d715f94e4ea9",
+    "lhttsged.exe": "410f47d1c4f07a29fbf8e14d9d7d76fe9eb80ff0b4547f53ca433af21cf211ba",
+    "lhttsiti.exe": "e00a7d56519d4f1de2930fc3e6585ebe23eb683010bac9307495dccbee470c72",
+    "lhttsjpj.exe": "a70965283371cd050546222496a6347268924513b9cac823c9c2ef2e31ef1818",
+    "lhttskok.exe": "6a5e57a3fa3f336166fc81abd78ae801260ad2860c846fec7f2748103a30a582",
+    "lhttsptb.exe": "9f6c247fd0e9d297b5574c14d3851e5ebd191851c269f46baf7a5f312bd03e2b",
+    "lhttsrur.exe": "a40bdc4dad5e32a2ff449cf53e3135a8ded25c2dacd02a0d8753a6670bb9dc7a",
+    "lhttsspe.exe": "5a9ecb7b4dc8b05569574fe40772183becc3e8953fa4839f8b2b67c20f89e0d9",
+}
+
+DOWNLOADS += tuple(
+    {
+        "name": f"L&H TTS3000 {filename[5:8].upper()} package",
+        "url": (
+            "https://dectalk.nu/Software%20and%20Manuals/Software/"
+            f"Lernout%20%26%20Hauspie/TTS3000/{filename}"
+        ),
+        "archive_sha256": checksum,
+        "cab_dlls": "lhtts",
+    }
+    for filename, checksum in LHTTS3000_PACKAGES.items()
 )
 
 
@@ -263,7 +319,7 @@ def fetch(urls: str | tuple[str, ...]) -> bytes:
     for url in urls:
         try:
             request = urllib.request.Request(
-                url, headers={"User-Agent": "retro-tts-pack/1.0.0"}
+                url, headers={"User-Agent": "retro-tts-pack/1.1.0"}
             )
             with urllib.request.urlopen(request, timeout=60) as response:
                 return response.read()
@@ -337,6 +393,76 @@ def install_tree(
     print(f"Installed tree: {destination} ({installed} new files)")
 
 
+def install_tree_candidates(
+    package: zipfile.ZipFile, candidates: tuple[str, ...], destination: Path
+) -> None:
+    names = tuple(info.filename.replace("\\", "/") for info in package.infolist())
+    prefix = next(
+        (candidate for candidate in candidates
+         if any(name.startswith(candidate) for name in names)),
+        None,
+    )
+    if prefix is None:
+        raise RuntimeError(f"archive contains none of the expected trees: {candidates}")
+    install_tree(package, prefix, destination)
+
+
+def install_verified_data(target: Path, data: bytes) -> bool:
+    """Install bytes protected by an already verified enclosing archive."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        if target.is_file() and target.read_bytes() == data:
+            return False
+        # L&H packages repeat shared managers. Preserve the first verified
+        # package's copy, matching the local installer behavior.
+        return False
+    fd, temporary = tempfile.mkstemp(prefix=f".{target.name}.", dir=target.parent)
+    try:
+        with os.fdopen(fd, "wb") as output:
+            output.write(data)
+        os.replace(temporary, target)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+    return True
+
+
+def install_cab_dlls(archive: bytes, destination: Path) -> None:
+    seven_zip = shutil.which("7z") or shutil.which("7zz")
+    cabextract = shutil.which("cabextract")
+    if not seven_zip and not cabextract:
+        raise RuntimeError("L&H extraction requires 7z, 7zz, or cabextract")
+    installed = 0
+    with tempfile.TemporaryDirectory(prefix="retro-tts-lhtts-") as temporary:
+        work = Path(temporary)
+        installer = work / "package.exe"
+        installer.write_bytes(archive)
+        output = work / "dlls"
+        output.mkdir()
+        if seven_zip:
+            subprocess.run(
+                [seven_zip, "e", "-y", f"-o{output}", str(installer)],
+                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        else:
+            subprocess.run(
+                [cabextract, "-q", "-d", str(output), str(installer)],
+                check=True,
+            )
+        excluded = {"ADVPACK.DLL", "W95INF16.DLL", "W95INF32.DLL", "LHSAPI40.DLL"}
+        for dll in sorted(output.iterdir()):
+            if not dll.is_file() or dll.suffix.casefold() != ".dll":
+                continue
+            if dll.name.upper() in excluded:
+                continue
+            installed += install_verified_data(
+                destination / dll.name.upper(), dll.read_bytes()
+            )
+    print(f"Installed L&H runtime DLLs: {destination} ({installed} new files)")
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} ASSET_DIRECTORY", file=sys.stderr)
@@ -350,10 +476,16 @@ def main() -> int:
             raise RuntimeError(
                 f"archive checksum mismatch for {item['name']}: {actual}"
             )
+        if "cab_dlls" in item:
+            install_cab_dlls(archive, destination / item["cab_dlls"])
+            continue
         with zipfile.ZipFile(io.BytesIO(archive)) as package:
             if "files" in item:
                 for member, (relative, expected) in item["files"].items():
                     install_file(destination / relative, package.read(member), expected)
+            elif "tree_candidates" in item:
+                candidates, relative = item["tree_candidates"]
+                install_tree_candidates(package, candidates, destination / relative)
             else:
                 source_prefix, relative = item["tree"]
                 install_tree(package, source_prefix, destination / relative)

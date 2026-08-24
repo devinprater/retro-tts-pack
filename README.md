@@ -2,8 +2,8 @@
 
 Project repository: <https://github.com/devinprater/retro-tts-pack>
 
-This Linux pack provides fifteen retro speech synthesizer adapters on x86_64 and
-eleven on ARM64 (aarch64):
+This Linux pack provides seventeen retro speech synthesizer adapters on x86_64
+and eleven on ARM64 (aarch64):
 
 - SAM
 - Atari ST Speech
@@ -17,6 +17,8 @@ eleven on ARM64 (aarch64):
 - WinTalker / MacInTalk
 - EchoTalk / Echo II Textalker 1.3 and 3.1.3
 - OutSpoken: MacinTalk 1, 2, 3, and Pro
+- Centigram TruVoice 5.10 (x86_64)
+- L&H TTS3000 6.x (x86_64)
 - Panthera Speech generations: Tiger 10.4, Leopard 10.5, and Lion 10.7
   MacinTalk (including Vicki and Alex)
 
@@ -25,14 +27,12 @@ uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
-## What's new in 1.0.0
+## What's new in 1.1.0
 
-- Added native EchoTalk and OutSpoken engines on x86_64 and ARM64, including
-  all 34 supplied MacinTalk 1, 2, 3, and Pro voices.
-- Added every usable NVDA language, voice, and personality to Orca with the
-  add-ons' real display names.
-- Uses checksum-pinned DECtalk.nu Tiger and Leopard data packages and removes
-  the superseded download source completely.
+- Added native Centigram TruVoice 5.10 and L&H TTS3000 6.x support on x86_64.
+- Recreated the symbol-rich `cgrm_spk.cpp` utility as a native Linux host.
+- Locally imports the newly supplied installers without redistributing their
+  proprietary DLLs.
 
 See [CHANGELOG.md](CHANGELOG.md) for the complete release summary.
 
@@ -71,13 +71,12 @@ their projects' GitHub releases:
 An interactive installation also offers this choice. Noninteractive
 installations do not download proprietary assets unless the option is given.
 The opt-in downloader also retrieves checksum-pinned SmoothTalker, Monologue,
-DoubleTalk PC, WinTalker, SoftVoice, and Amiga Narrator packages from
-DECtalk.nu, retaining
+DoubleTalk PC, WinTalker, SoftVoice, Amiga Narrator, Centigram TruVoice, and
+all L&H TTS3000 language packages from DECtalk.nu, retaining
 datajake as a fallback for packages mirrored identically there. DECtalk.nu also
 provides the checksum-pinned Tiger and Leopard trees, EchoTalk Textalker images,
-and the OutSpoken MacinTalk ROM collection. Lion and Sequoia data are no longer
-downloaded automatically and can still be discovered from nearby add-ons or
-copied into their asset directories manually.
+the Lion tree, and the OutSpoken MacinTalk ROM collection from its dedicated
+Apple directory. Snow Leopard and Sequoia data are not used by this pack.
 
 The installer places the pack in
 `$XDG_DATA_HOME/retro-tts-pack` (normally
@@ -104,6 +103,8 @@ put them in the installed copy and run the installer again.
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
 | EchoTalk | `assets/echotalk/textalker.ram.bin`, `textalker.obj.bin`, `textalker_v13.ram.bin`, and `textalker_v13.obj.bin` |
 | OutSpoken | `assets/outspoken/outspoken-roms`; individual MacinTalk 1, 2, 3, or Pro generations are discovered from its subdirectories |
+| Centigram TruVoice (x86_64 only) | `assets/truevoice/TV_ENG32.DLL`; the installer imports it from `cgrm_spk-win32.zip` or `TruVoice_new.exe` when either is kept near the source tree |
+| L&H TTS3000 (x86_64 only) | the DLLs extracted from the supplied `lhtts*.exe` language installers; the installer extracts these automatically with 7-Zip or `cabextract` |
 | WinTalker (x86_64 only) | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
 | Tiger Speech (x86_64 only) | `assets/tigerspeech/tigerspeech-data/Speech/Voices`; Wine is required by this pack |
 | Leopard Speech (x86_64 only) | `assets/leopardspeech/leopardspeech-data/Speech/Voices`; the installer prefers its Wine-compatible native host where available |
@@ -162,6 +163,8 @@ spd-say -w -o leopardspeech "Alex is working."
 spd-say -w -o tigerspeech "Vicki is working."
 spd-say -w -o echotalk "Textalker is working."
 spd-say -w -o outspoken "The original MacinTalk is working."
+spd-say -w -o truevoice "Centigram TrueVoice is working."
+spd-say -w -o lhtts "L and H TTS is working."
 spd-say -w -o lionspeech "Lion Alex is working."
 ```
 

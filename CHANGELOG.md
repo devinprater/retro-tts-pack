@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.0 - 2026-08-24
+
+- Added native x86_64 Centigram TruVoice 5.10 with all ten voices, working
+  rate, pitch, and volume controls, and a recreated `cgrm_spk` command-line
+  host. The original Windows DLL runs inside the existing Unicorn bridge;
+  Wine is not required.
+- Added native x86_64 L&H TTS3000 6.x with 28 usable voices across American
+  and British English, French, German, Italian, Spanish, Dutch, Russian, and
+  Korean.
+- The installer now discovers the supplied TruVoice ZIP/installer and L&H
+  self-extracting CAB files locally. Proprietary DLLs remain excluded from the
+  pack and are imported only during installation.
+- Added checksum-pinned DECtalk.nu downloads for Centigram TruVoice and all
+  eleven L&H TTS3000 language packages, with direct verified CAB extraction.
+- Moved the OutSpoken, Tiger, and Leopard downloads to DECtalk.nu's dedicated
+  Apple directory and added the newly published Lion package.
+- Made the persistent renderer tolerate legacy 8-bit punctuation from
+  Speech Dispatcher so malformed input cannot mute EchoTalk or OutSpoken, and
+  applied normal pause shortening to the SoftVoice worker path.
+
 ## 1.0.0 - 2026-08-23
 
 - Added native x86_64 and ARM64 EchoTalk support for the Echo II's Textalker
