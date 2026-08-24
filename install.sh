@@ -264,6 +264,7 @@ export RETRO_TTS_LHTTS_SHIM="\$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"
 export RETRO_TTS_LHTTS_DATA="\$INSTALL_DIR/assets/lhtts"
 export RETRO_TTS_TRUEVOICE_SHIM="\$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"
 export RETRO_TTS_TRUEVOICE_DATA="\$INSTALL_DIR/assets/truevoice"
+export RETRO_TTS_TRUEVOICE_CLI="\$INSTALL_DIR/bin/cgrm_spk"
 export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
 export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
 export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
@@ -327,6 +328,7 @@ Environment=RETRO_TTS_LHTTS_SHIM=$INSTALL_DIR/lib/liblhtts_shim.$architecture.so
 Environment=RETRO_TTS_LHTTS_DATA=$INSTALL_DIR/assets/lhtts
 Environment=RETRO_TTS_TRUEVOICE_SHIM=$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so
 Environment=RETRO_TTS_TRUEVOICE_DATA=$INSTALL_DIR/assets/truevoice
+Environment=RETRO_TTS_TRUEVOICE_CLI=$INSTALL_DIR/bin/cgrm_spk
 Environment=RETRO_TTS_ECHOTALK_LIB=$INSTALL_DIR/lib/libechotalk.$architecture.so
 Environment=RETRO_TTS_ECHOTALK_DATA=$INSTALL_DIR/assets/echotalk
 Environment=RETRO_TTS_OUTSPOKEN_HOST=$INSTALL_DIR/lib/libosp_host.$architecture.so
@@ -419,7 +421,8 @@ if has_all \
 else missing_modules="$missing_modules lhtts"; fi
 if has_all \
     "$ASSETS/truevoice/TV_ENG32.DLL" \
-    "$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"; then
+    "$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so" \
+    "$INSTALL_DIR/bin/cgrm_spk"; then
     available_modules="$available_modules truevoice"
 else missing_modules="$missing_modules truevoice"; fi
 if has_all "$ASSETS/amiganarrator/narrator.device" &&

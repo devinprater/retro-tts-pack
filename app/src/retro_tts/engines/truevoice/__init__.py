@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import ctypes
 import os
-import platform
-import threading
+import io
+import subprocess
+import wave
 from pathlib import Path
 
 
@@ -20,51 +20,24 @@ VOICES = {
     "Julia": 9,
 }
 DEFAULT_VOICE = "Peter"
-_SAMPLE_CB = ctypes.CFUNCTYPE(
-    None, ctypes.POINTER(ctypes.c_int16), ctypes.c_size_t, ctypes.c_void_p
-)
-
-_library: ctypes.CDLL | None = None
-_engine: int | None = None
-_lock = threading.Lock()
-
-
-def _architecture() -> str:
-    return "aarch64" if platform.machine().lower() in {"aarch64", "arm64"} else "x86_64"
-
-
-def _load() -> tuple[ctypes.CDLL, int]:
-    global _library, _engine
-    if _library is not None and _engine is not None:
-        return _library, _engine
-    shim = Path(os.environ.get(
-        "RETRO_TTS_TRUEVOICE_SHIM",
-        f"lib/libtruevoice_shim.{_architecture()}.so",
-    ))
-    data = Path(os.environ.get("RETRO_TTS_TRUEVOICE_DATA", "assets/truevoice"))
-    library = ctypes.CDLL(str(shim))
-    library.tv_create.argtypes = [ctypes.c_char_p]
-    library.tv_create.restype = ctypes.c_void_p
-    library.tv_destroy.argtypes = [ctypes.c_void_p]
-    library.cgrm_init.argtypes = [ctypes.c_void_p]
-    library.cgrm_init.restype = ctypes.c_int
-    library.cgrm_speak.argtypes = [
-        ctypes.c_void_p, ctypes.c_char_p,
-        ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-        _SAMPLE_CB, ctypes.c_void_p,
-    ]
-    library.cgrm_speak.restype = ctypes.c_int
-    engine = library.tv_create(str(data.resolve()).encode())
-    if not engine or library.cgrm_init(engine) != 0:
-        if engine:
-            library.tv_destroy(engine)
-        raise RuntimeError("Centigram TruVoice initialization failed")
-    _library, _engine = library, engine
-    return library, engine
 
 
 def _percent(value: int) -> int:
     return max(0, min(100, value))
+
+
+def _combine(parts: list[bytes]) -> bytes:
+    pcm = bytearray()
+    params = None
+    for part in parts:
+        with wave.open(io.BytesIO(part), "rb") as source:
+            params = params or source.getparams()
+            pcm.extend(source.readframes(source.getnframes()))
+    output = io.BytesIO()
+    with wave.open(output, "wb") as target:
+        target.setparams(params)
+        target.writeframes(pcm)
+    return output.getvalue()
 
 
 def text_to_wav(
@@ -78,20 +51,41 @@ def text_to_wav(
         VOICES[DEFAULT_VOICE],
     )
     native_rate = 50 + round(_percent(rate) * 2.0)
-    native_pitch = 50 + round(_percent(pitch) * 3.5)
+    # The recovered cgrm_spk default is 150. Keep that at Orca's neutral
+    # midpoint, with finer control below it and the remaining range above it.
+    pitch_percent = _percent(pitch)
+    native_pitch = (
+        50 + round(pitch_percent * 2)
+        if pitch_percent <= 50
+        else 150 + round((pitch_percent - 50) * 5)
+    )
     native_volume = round(_percent(volume) * 16 / 100)
-    output = bytearray()
+    executable = Path(os.environ.get("RETRO_TTS_TRUEVOICE_CLI", "bin/cgrm_spk"))
+    data = Path(os.environ.get("RETRO_TTS_TRUEVOICE_DATA", "assets/truevoice"))
 
-    @_SAMPLE_CB
-    def receive(samples, count, _context):
-        output.extend(ctypes.string_at(samples, count * 2))
-
-    with _lock:
-        library, engine = _load()
-        rc = library.cgrm_speak(
-            engine, text.encode("cp1252", "replace"), voice_id,
-            native_rate, native_pitch, native_volume, receive, None,
+    def synthesize(fragment: str) -> bytes:
+        result = subprocess.run(
+            [
+                str(executable.resolve()), "--data", str(data.resolve()),
+                "--filename", "-", "--voice", str(voice_id),
+                "--rate", str(native_rate), "--pitch", str(native_pitch),
+                "--volume", str(native_volume), fragment,
+            ],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
-    if rc or len(output) <= 44 or output[:4] != b"RIFF":
-        raise RuntimeError(f"Centigram TruVoice synthesis failed ({rc})")
-    return bytes(output)
+        if not result.returncode and len(result.stdout) > 44 and result.stdout[:4] == b"RIFF":
+            return result.stdout
+        # Some Centigram text paths return 0x10000 for a full sentence even
+        # though each phrase is valid. Split only failed input, then join its
+        # PCM, so arbitrary Orca text cannot poison or mute later requests.
+        words = fragment.split()
+        if len(words) > 1:
+            middle = len(words) // 2
+            return _combine([
+                synthesize(" ".join(words[:middle])),
+                synthesize(" ".join(words[middle:])),
+            ])
+        detail = result.stderr.decode("utf-8", "replace").strip()
+        raise RuntimeError(f"Centigram TruVoice synthesis failed: {detail or result.returncode}")
+
+    return synthesize(text)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.1 - 2026-08-24
+
+- Isolated each Centigram TruVoice utterance in the recreated `cgrm_spk`
+  process and split only phrases rejected by the original engine, preventing a
+  failed sentence from crashing or muting subsequent Orca speech.
+- Restored TruVoice's original pitch 150 as the neutral Orca setting instead
+  of the noticeably higher pitch 225.
+- Added pitch-preserving rate control for L&H TTS3000 and made its neutral
+  Orca rate faster than the unusually slow factory cadence.
+- Kept L&H callback audio on its original streaming path while retaining the
+  seekable file emulation required by Centigram TruVoice.
+
 ## 1.1.0 - 2026-08-24
 
 - Added native x86_64 Centigram TruVoice 5.10 with all ten voices, working

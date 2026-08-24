@@ -57,12 +57,12 @@ int main(int argc, char **argv) {
         if (engine) tv_destroy(engine);
         return 1;
     }
-    FILE *file = std::fopen(filename, "wb");
+    FILE *file = !std::strcmp(filename, "-") ? stdout : std::fopen(filename, "wb");
     if (!file) { std::perror(filename); tv_destroy(engine); return 1; }
     Output output{file};
     int rc = cgrm_speak(engine, text.c_str(), voice, rate, pitch, volume,
                         write_audio, &output);
-    std::fclose(file);
+    if (file == stdout) std::fflush(file); else std::fclose(file);
     tv_destroy(engine);
     if (rc != 0) std::fprintf(stderr, "TruVoice synthesis failed (%d)\n", rc);
     return rc == 0 ? 0 : 1;

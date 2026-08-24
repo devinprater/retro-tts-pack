@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import ctypes
 import io
+import math
 import os
 import platform
 import threading
 import wave
+from array import array
 from pathlib import Path
 
 
@@ -125,11 +127,53 @@ def _resolve_voice(voice: str | None) -> tuple[str, int]:
     return matches[0] if len(matches) == 1 else VOICE_CATALOG[DEFAULT_VOICE]
 
 
+def _time_scale(pcm: bytes, sample_rate: int, factor: float) -> bytes:
+    """Change speaking rate with a compact speech-oriented overlap-add.
+
+    TTS3000's private manager ignores SAPI rate settings on its file-render
+    path. Aligning overlapping waveform windows changes duration while keeping
+    the voices' characteristic pitch substantially intact.
+    """
+    if abs(factor - 1.0) < 0.015:
+        return pcm
+    source = array("h")
+    source.frombytes(pcm)
+    frame = max(96, sample_rate * 30 // 1000)
+    overlap = max(32, sample_rate * 10 // 1000)
+    output_hop = frame - overlap
+    input_hop = max(1, round(output_hop * factor))
+    search = max(8, sample_rate * 4 // 1000)
+    if len(source) <= frame:
+        return pcm
+    output = array("h", source[:frame])
+    position = input_hop
+    while position + frame < len(source):
+        low = max(0, position - search)
+        high = min(len(source) - frame, position + search)
+        tail = output[-overlap:]
+        best = position
+        best_score = None
+        for candidate in range(low, high + 1, 2):
+            score = sum(tail[index] * source[candidate + index]
+                        for index in range(overlap))
+            if best_score is None or score > best_score:
+                best_score, best = score, candidate
+        for index in range(overlap):
+            mixed = (
+                output[-overlap + index] * (overlap - index)
+                + source[best + index] * index
+            ) // overlap
+            output[-overlap + index] = max(-32768, min(32767, mixed))
+        output.extend(source[best + overlap:best + frame])
+        position = best + input_hop
+    return output.tobytes()
+
+
 def text_to_wav(
     text: str, rate: int = 50, pitch: int = 50, volume: int = 90,
     voice: str | None = None,
 ) -> bytes:
-    del rate, pitch, volume  # The recovered 6.x driver currently uses native prosody.
+    del pitch, volume  # The recovered 6.x driver currently uses native pitch/volume.
     global _selected
     language, voice_id = _resolve_voice(voice)
     payload = text.encode(LANG_CODEPAGES.get(language, "cp1252"), "replace")
@@ -160,5 +204,8 @@ def text_to_wav(
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setparams((1, 2, sample_rate, 0, "NONE", ""))
-        wav.writeframes(pcm)
+        # Neutral Orca rate is intentionally a little faster than TTS3000's
+        # unusually slow factory cadence. The full slider spans 0.70x–2.25x.
+        speed = 0.70 * math.pow(2.25 / 0.70, max(0, min(100, rate)) / 100)
+        wav.writeframes(_time_scale(bytes(pcm), sample_rate, speed))
     return output.getvalue()
