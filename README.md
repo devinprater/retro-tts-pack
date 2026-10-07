@@ -211,6 +211,11 @@ AddModule "sam" "sd_generic" "sam-generic.conf"
 Replace `sam` with the module name. Module configurations are installed under
 `~/.config/speech-dispatcher/modules/`.
 
+## Pending work
+
+The ordered backlog, including what is deliberately *not* being worked on and
+why, is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ## Contents and licensing
 
 The pack contains open-source adapters, emulators, native compatibility shims,
