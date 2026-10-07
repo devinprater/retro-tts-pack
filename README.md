@@ -87,6 +87,38 @@ SAM and ST Speech work immediately. `--download-assets` also enables
 BeSTSpeech and Prose 2000. Other engines require original, legally obtained
 files that are not included.
 
+### Run it as your own user, never with `sudo`
+
+**This is a per-user install. There is no system-wide mode and no `--system`
+flag.** Do not run `sudo ./install.sh`.
+
+Every path the installer uses derives from `$HOME`, so under `sudo` the entire
+pack — binaries, Speech Dispatcher modules, and the systemd user unit — lands in
+`/root/.local/share/retro-tts-pack` and nothing appears in your own account. Your
+screen reader runs as you, never reads root's home directory, and so never sees
+the modules. You also get `WARNING: no usable systemd user manager`, because under
+`sudo` there is no user session for the renderer service to attach to. The install
+reports success while being invisible to the very thing that would use it.
+
+```sh
+./install.sh            # correct: installs for you
+sudo ./install.sh       # wrong: installs for root, unreachable
+```
+
+If you already installed with `sudo`, remove the root copy and reinstall as
+yourself:
+
+```sh
+sudo rm -rf /root/.local/share/retro-tts-pack
+sudo rm -f  /root/.config/systemd/user/retro-tts.service
+./install.sh
+```
+
+This applies to console screen readers too. Fenrir, like Orca, runs as your user
+and reads your `~/.config/speech-dispatcher/`, so a per-user install is the one it
+will find.
+
+
 ## Required engine assets
 
 Put files in this pack's `assets/` directories before running `install.sh`, or

@@ -7,6 +7,11 @@ of work; nothing here is speculative except where explicitly marked.
 
 ## Recently completed
 
+- **Install scope**, was #1. The README now states plainly that this is a per-user
+  install with no system-wide mode, that `sudo ./install.sh` puts everything
+  under `/root` where the user's screen reader never looks, and how to recover
+  from having run it. The installer was already correct; only the documentation
+  was missing, which is why the question kept coming back.
 - **Broken upstream links** (was #2). Audited every URL in the docs, config
   and installer with redirect detection. Fixed `tgeczy/tiger-speech` ->
   `tgeczy/panthera-speech` (a rename, so it still returned 200), switched
@@ -63,17 +68,7 @@ See #6.
 
 ---
 
-## 3. Document the install scope (#1)
-
-`sudo ./install.sh` installs into `/root/.local` and is unreachable by the user's
-screen reader, because under `sudo` there is no user session. The installer has no
-system-wide mode and no `--system` flag; every path derives from `$HOME`. This is a
-scope property rather than a bug, but it keeps getting reported, so it needs a
-clear note in the README.
-
----
-
-## 4. Decompile the L&H TTS3000 engine — lowest priority
+## 3. Decompile the L&H TTS3000 engine — lowest priority
 
 **Do not start this unless every item above is done and someone actively wants
 Carol back on ARM.** It is a multi-month reverse-engineering effort with no
