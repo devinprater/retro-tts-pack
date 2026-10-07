@@ -12,7 +12,7 @@ release of EchoTalk.
 
 **Author:** Mike Chambers (miker00lz@gmail.com), 2011, version 1.1
 
-**Upstream source:** <http://rubbermallet.org/fake6502.c>
+**Upstream source:** <https://rubbermallet.org/fake6502.c>
 
 **License statement, verbatim from the source file:**
 

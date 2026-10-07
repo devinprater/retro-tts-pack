@@ -1,7 +1,7 @@
 # Leopard host
 
 `leopard_host.exe` is built from the shared loader in
-<https://github.com/tgeczy/tiger-speech> (the loader used by the official
+<https://github.com/tgeczy/panthera-speech> (the loader used by the official
 Leopard Speech add-on).
 
 This build adds a `TIGER_WINE_AAC` compatibility switch. When set, the AAC

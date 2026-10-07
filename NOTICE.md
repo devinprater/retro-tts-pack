@@ -29,9 +29,10 @@ Important upstream projects include:
 - <https://github.com/OnjLouis/prose2000>
 - <https://github.com/daiverd/doubletalk-pc>
 - <https://github.com/nicodex/AmigaNarrator>
-- <https://github.com/daiverd/rusty_tts>
+- rusty_tts by daiverd (MIT; license retained in `licenses/rusty_tts/`).
+  The upstream repository is no longer published, so no link is given.
 - <https://github.com/unicorn-engine/unicorn>
-- <https://github.com/tgeczy/tiger-speech>
+- <https://github.com/tgeczy/panthera-speech>
 - <https://github.com/jaybird110127/echotalk>
 - <https://github.com/tgeczy/outspoken-nvda>
 - <https://github.com/kstenerud/Musashi>
