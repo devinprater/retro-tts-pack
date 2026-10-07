@@ -372,6 +372,11 @@ EOF
 chmod 755 "$INSTALL_DIR/bin/retro-tts-server"
 
 available_modules="sam stspeech"
+# ⛔ A THIRD CATEGORY. "missing proprietary assets" used to absorb modules that
+# CANNOT run on this CPU at all -- they need an arch-specific native shim this
+# release builds only for x86_64. Telling a Pi 4 user to go find DLLs for a module
+# that can never load is the misdirection behind issue #4.
+unsupported_modules=""
 missing_modules=""
 
 has_all() {
@@ -410,20 +415,36 @@ else missing_modules="$missing_modules bestspeech"; fi
 if has_all "$ASSETS/softvoice/tibase32.dll" "$ASSETS/softvoice/tieng32.dll"; then
     available_modules="$available_modules softvoice"
 else missing_modules="$missing_modules softvoice"; fi
+# ⛔ LHTTS AND TRUVOICE SHIM AN ARCH-SPECIFIC NATIVE LIBRARY, AND ONLY x86_64 IS
+# BUILT. install.sh used to fold that into one "missing proprietary assets"
+# bucket, which sent users of a Pi 4 hunting for DLLs they already had. The two
+# causes are genuinely different and are now reported differently:
+#   * the DLL assets are absent  -> an assets problem, fixable by the user
+#   * the shim for this CPU is absent -> a PACKAGING gap, not fixable by the user
+# See issue #4: on aarch64 the module can never be enabled however the assets are
+# placed, because lib/liblhtts_shim.aarch64.so is not shipped at all.
+LHTTS_SHIM="$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"
 if has_all \
     "$ASSETS/lhtts/TTSMGR32.DLL" \
     "$ASSETS/lhtts/TTSDCT32.DLL" \
     "$ASSETS/lhtts/ENUG2P60.DLL" \
     "$ASSETS/lhtts/ENUCT260.DLL" \
     "$ASSETS/lhtts/ENUVM160.DLL" \
-    "$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"; then
+    "$LHTTS_SHIM"; then
     available_modules="$available_modules lhtts"
+elif [ ! -f "$LHTTS_SHIM" ]; then
+    unsupported_modules="$unsupported_modules lhtts"
+    warn "lhtts cannot run on $architecture: $LHTTS_SHIM is not shipped (only x86_64 is built). The DLLs are irrelevant on this CPU."
 else missing_modules="$missing_modules lhtts"; fi
+TRUEVOICE_SHIM="$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"
 if has_all \
     "$ASSETS/truevoice/TV_ENG32.DLL" \
-    "$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so" \
+    "$TRUEVOICE_SHIM" \
     "$INSTALL_DIR/bin/cgrm_spk"; then
     available_modules="$available_modules truevoice"
+elif [ ! -f "$TRUEVOICE_SHIM" ]; then
+    unsupported_modules="$unsupported_modules truevoice"
+    warn "truevoice cannot run on $architecture: $TRUEVOICE_SHIM is not shipped (only x86_64 is built)."
 else missing_modules="$missing_modules truevoice"; fi
 if has_all "$ASSETS/amiganarrator/narrator.device" &&
    { [ -f "$ASSETS/amiganarrator/translator.library" ] ||
@@ -495,43 +516,26 @@ if [ ! -f "$SPEECHD_CONF" ]; then
     done
 fi
 
-if [ -f "$SPEECHD_CONF" ]; then
+# ⛔ DO NOT REGISTER MODULES WITH AddModule HERE. This used to append an
+# AddModule list, and that list did nothing but BREAK things:
+#
+#   * One explicit AddModule makes speech-dispatcher stop discovering its
+#     standard modules. Measured on 0.12: with the block present it loaded ONLY
+#     the entries registered here, and the stock ones it named failed anyway (a
+#     bare binary name like "sd_espeak-ng" plus a non-generic config name like
+#     "espeak-ng.conf" does not load). The retro entries were what survived, and
+#     "sam" sorts first -- one survivor of a broken list. That is the reported
+#     "sam-generic jump scare".
+#   * It was unnecessary. speech-dispatcher ALREADY finds this pack's modules by
+#     directory: configs go to $MODULE_DIR, binaries to $INSTALL_DIR/bin, and its
+#     log reports "Module name=sam-generic being inserted into detected_modules
+#     list" with NO AddModule line anywhere.
+#
+# So the correct state is a speechd.conf with no RETRO-TTS-PACK block at all.
+# Strip one if an older installer left it, or upgrading stays broken.
+if [ -f "$SPEECHD_CONF" ] && grep -q 'BEGIN RETRO-TTS-PACK' "$SPEECHD_CONF"; then
     sed -i '/# BEGIN RETRO-TTS-PACK/,/# END RETRO-TTS-PACK/d' "$SPEECHD_CONF"
-    {
-        printf '\n# BEGIN RETRO-TTS-PACK\n'
-        # Once any AddModule is explicit, Speech Dispatcher stops discovering
-        # its standard modules automatically.  Register the installed native
-        # modules too, without touching DefaultModule or language preferences.
-        for module in espeak-ng eloquence festival openjtalk; do
-            module_binary="sd_$module"
-            module_config="$module.conf"
-            for libexec_dir in \
-                /usr/lib/speech-dispatcher/speech-dispatcher-modules \
-                /usr/libexec/speech-dispatcher-modules \
-                "$HOME/.local/libexec/speech-dispatcher-modules"; do
-                if [ -x "$libexec_dir/$module_binary" ] &&
-                   { [ -f "$MODULE_DIR/$module_config" ] ||
-                     [ -f "/etc/speech-dispatcher/modules/$module_config" ] ||
-                     [ -f "/usr/share/speech-dispatcher/conf/modules/$module_config" ]; }; then
-                    printf 'AddModule "%s" "%s" "%s"\n' "$module" "$module_binary" "$module_config"
-                    break
-                fi
-            done
-        done
-        retro_generic=sd_generic
-        if [ -x "$INSTALL_DIR/bin/sd_retro_generic.$architecture" ]; then
-            retro_generic="$INSTALL_DIR/bin/sd_retro_generic.$architecture"
-        else
-            warn "Retro generic module is unavailable for $architecture; Orca may show generic person names"
-        fi
-        for module in $available_modules; do
-            printf 'AddModule "%s" "%s" "%s-generic.conf"\n' \
-                "$module" "$retro_generic" "$module"
-        done
-        printf '# END RETRO-TTS-PACK\n'
-    } >>"$SPEECHD_CONF"
-else
-    warn "could not locate a base speechd.conf; add the AddModule lines from README.md manually"
+    say "Removed this pack's AddModule block from $(basename "$SPEECHD_CONF"); speech-dispatcher discovers these modules by directory."
 fi
 
 if [ "${RETRO_TTS_SKIP_SYSTEMD:-0}" != 1 ] &&
@@ -555,6 +559,11 @@ else
 fi
 
 say "Installed modules:$available_modules"
+if [ -n "$unsupported_modules" ]; then
+    say "Not available on this CPU ($architecture):$unsupported_modules"
+    say "  These need an arch-specific native shim this release ships only for x86_64."
+    say "  No asset can fix it -- see issue #4."
+fi
 if [ -n "$missing_modules" ]; then
     say "Skipped modules missing proprietary assets:$missing_modules"
     say "Copy those assets into $ASSETS and run install.sh again."
