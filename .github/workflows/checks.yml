@@ -1,0 +1,75 @@
+name: checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  no-addmodule:
+    name: no AddModule (autodiscovery must stay on)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject AddModule instructions
+        run: python3 scripts/check-no-addmodule.py
+
+  doc-links:
+    name: documentation links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Link rot is otherwise invisible: the repo has no other gate, and a RENAMED
+      # repo still returns 200 through GitHub's redirect, so status alone is not
+      # enough. This is advisory -- a third-party host going down must not block a
+      # release, it just needs to be visible.
+      - name: Check links resolve
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import re, subprocess, sys
+          from pathlib import Path
+
+          files = subprocess.run(["git", "ls-files"], capture_output=True,
+                                 text=True, check=True).stdout.split()
+          pat = re.compile(r'https?://[^\]\)<>\'"` ]+')
+          urls = {}
+          for f in files:
+              if Path(f).suffix.lower() not in {".md", ".py", ".sh", ".conf"}:
+                  continue
+              try:
+                  text = Path(f).read_text(encoding="utf-8")
+              except (UnicodeDecodeError, OSError):
+                  continue
+              for m in pat.findall(text):
+                  urls.setdefault(m.rstrip(".,;:"), set()).add(f)
+
+          bad = []
+          for u in sorted(urls):
+              try:
+                  r = subprocess.run(
+                      ["curl", "-s", "-o", "/dev/null", "-w",
+                       "%{http_code} %{url_effective}", "-L", "--max-time", "25", u],
+                      capture_output=True, text=True, timeout=40).stdout.split()
+                  code, final = r[0], (r[1] if len(r) > 1 else u)
+              except Exception as e:
+                  bad.append((u, "ERR", str(e)))
+                  continue
+              if code not in {"200", "204"}:
+                  bad.append((u, code, ", ".join(sorted(urls[u]))))
+              elif final.rstrip("/") != u.rstrip("/"):
+                  bad.append((u, "REDIRECT->" + final, ", ".join(sorted(urls[u]))))
+
+          for u, code, where in bad:
+              print(f"::warning file={where}::{code} {u}")
+          print(f"{len(urls)} links checked, {len(bad)} problem(s)")
+          PY
+
+  install-sh:
+    name: installer syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: bash -n
+        run: bash -n install.sh

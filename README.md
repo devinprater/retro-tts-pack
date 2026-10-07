@@ -201,15 +201,26 @@ QEMU aarch64; it has not yet been timed on physical Compute Module hardware.
 ## Manual Speech Dispatcher setup
 
 If the installer cannot find a base `speechd.conf`, copy the system's
-`speechd.conf` into `~/.config/speech-dispatcher/speechd.conf`. For each
-available engine, add:
+`speechd.conf` into `~/.config/speech-dispatcher/speechd.conf`.
 
-```text
-AddModule "sam" "sd_generic" "sam-generic.conf"
+**Do not add `AddModule` lines to register these engines.** Speech Dispatcher
+finds this pack's modules by directory, which is why the installer only places
+files. A single explicit `AddModule` line turns that autodiscovery off: after it,
+only the listed modules are loaded, every other synthesizer you have stops
+appearing, and the alphabetically-first retro voice becomes your system default.
+That is the failure people report as a jump scare. If an older version of this
+installer left a `RETRO-TTS-PACK` block in your `speechd.conf`, the current
+installer removes it — re-run `./install.sh` on an affected machine.
+
+To confirm the engines were found, ask Speech Dispatcher what it has:
+
+```sh
+spd-say -O
 ```
 
-Replace `sam` with the module name. Module configurations are installed under
-`~/.config/speech-dispatcher/modules/`.
+Module configurations live in `~/.config/speech-dispatcher/modules/`. A config
+there is picked up automatically when it is named `*-generic.conf` and the
+command in its `GenericCmdDependency` line exists on your `PATH`.
 
 ## Pending work
 
