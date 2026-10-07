@@ -5,6 +5,17 @@ of work; nothing here is speculative except where explicitly marked.
 
 ---
 
+## Recently completed
+
+- **Broken upstream links** (was #2). Audited every URL in the docs, config
+  and installer with redirect detection. Fixed `tgeczy/tiger-speech` ->
+  `tgeczy/panthera-speech` (a rename, so it still returned 200), switched
+  the fake6502 link to https (http returns 503), and replaced the dead
+  `daiverd/rusty_tts` URL with an attribution line noting the upstream is
+  unpublished. Commit `e487958`.
+
+---
+
 ## 1. Run x86-only engines on ARM64 through Wine (Hangover / FEX-Emu)
 
 The single highest-value item, because it unlocks **four** engines at once on
@@ -52,13 +63,7 @@ See #6.
 
 ---
 
-## 3. Fix the broken links (#2)
-
-Reported and still open.
-
----
-
-## 4. Document the install scope (#1)
+## 3. Document the install scope (#1)
 
 `sudo ./install.sh` installs into `/root/.local` and is unreachable by the user's
 screen reader, because under `sudo` there is no user session. The installer has no
@@ -68,7 +73,7 @@ clear note in the README.
 
 ---
 
-## 5. Decompile the L&H TTS3000 engine — lowest priority
+## 4. Decompile the L&H TTS3000 engine — lowest priority
 
 **Do not start this unless every item above is done and someone actively wants
 Carol back on ARM.** It is a multi-month reverse-engineering effort with no
