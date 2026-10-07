@@ -7,16 +7,23 @@ disappears and some retro voice becomes the system default. That is the reported
 "jump scare". Autodiscovery already finds these modules by directory, so an
 `AddModule` line is never needed.
 
-A bare grep is not enough -- the installer legitimately MENTIONS AddModule in a
-comment explaining why not to do this, and in a user-facing message about
-stripping a block left by an older version. So this checks intent, not spelling:
+A bare grep does not work. Legitimate mentions exist:
 
-  * shell: comments are stripped, and message strings (`say "..."`/`warn "..."`)
-    are exempt; any remaining AddModule is a failure
-  * python: any AddModule -- it would be written into a config
-  * speechd .conf: always a failure, that is the file that causes the breakage
-  * markdown: flagged only inside fenced code blocks, since that is what a user
-    copies; prose explaining the hazard is fine
+  * `install.sh` explains the hazard in a comment and prints a message about
+    stripping a block left by an older version
+  * this file, and the workflow that runs it, are *about* AddModule
+  * markdown may discuss the hazard in prose
+
+So this checks intent, not spelling:
+
+  * shell         -- comments stripped; `say`/`warn` message strings exempt
+  * python        -- docstrings and comments skipped; only live code counts
+  * speechd .conf -- always a failure, this is the file that causes the breakage
+  * markdown      -- only inside fenced code blocks, since that is what a user copies
+  * yaml          -- only in `run:` payloads; a job/step `name:` is just a label
+
+Files that exist to police this rule (SELF) and the workflow that invokes them
+are skipped, or the check fails on itself.
 """
 from __future__ import annotations
 
@@ -26,6 +33,14 @@ import sys
 from pathlib import Path
 
 FAILS: list[str] = []
+
+# Files whose mention of AddModule is the point of the file.
+SELF = {
+    "scripts/check-no-addmodule.py",
+    ".github/workflows/checks.yml",
+}
+
+SAY_WARN = re.compile(r'\b(?:say|warn)\s+"')
 
 
 def tracked_files() -> list[Path]:
@@ -38,22 +53,50 @@ def tracked_files() -> list[Path]:
     return [Path(p) for p in out.splitlines() if p.strip()]
 
 
+def strip_python_strings(text: str) -> list[str]:
+    """Blank out docstrings and comments so only live code is examined.
+
+    Line count is preserved so reported line numbers stay correct.
+    """
+    out: list[str] = []
+    quote: str | None = None
+    for line in text.splitlines():
+        if quote is not None:
+            if quote in line:
+                quote = None
+            out.append("")
+            continue
+        stripped = line.lstrip()
+        m = re.match(r'[rbfu]*("""|\'\'\')', stripped)
+        if m:
+            body = stripped[m.end():]
+            if m.group(1) not in body:
+                quote = m.group(1)
+            out.append("")
+            continue
+        if stripped.startswith("#"):
+            out.append("")
+            continue
+        out.append(line.split("#", 1)[0])
+    return out
+
+
 def check_shell(path: Path, text: str) -> None:
     for i, line in enumerate(text.splitlines(), 1):
         if "AddModule" not in line:
             continue
         stripped = line.lstrip()
-        if stripped.startswith("#"):            # explanatory comment: intended
+        if stripped.startswith("#"):
             continue
-        if re.search(r'\b(?:say|warn)\s+"', line):  # user-facing message: intended
+        if SAY_WARN.search(line):
             continue
-        FAILS.append(f"{path}:{i}: shell code would register a module: {line.strip()}")
+        FAILS.append(f"{path}:{i}: live shell code registers a module: {line.strip()}")
 
 
 def check_python(path: Path, text: str) -> None:
-    for i, line in enumerate(text.splitlines(), 1):
-        if "AddModule" in line and not line.lstrip().startswith("#"):
-            FAILS.append(f"{path}:{i}: python would write an AddModule line: {line.strip()}")
+    for i, line in enumerate(strip_python_strings(text), 1):
+        if "AddModule" in line:
+            FAILS.append(f"{path}:{i}: live python writes an AddModule line: {line.strip()}")
 
 
 def check_conf(path: Path, text: str) -> None:
@@ -63,7 +106,6 @@ def check_conf(path: Path, text: str) -> None:
 
 
 def check_markdown(path: Path, text: str) -> None:
-    """Only fenced code blocks matter: that is what a user copies and runs."""
     in_fence = False
     fence = ""
     for i, line in enumerate(text.splitlines(), 1):
@@ -82,9 +124,23 @@ def check_markdown(path: Path, text: str) -> None:
             )
 
 
+def check_yaml(path: Path, text: str) -> None:
+    """Only `run:` payloads execute; a job or step `name:` is a label."""
+    for i, line in enumerate(text.splitlines(), 1):
+        if "AddModule" not in line:
+            continue
+        if re.match(r"\s*(?:-\s+)?name\s*:", line):
+            continue  # a label, not an instruction
+        stripped = line.lstrip()
+        if stripped.startswith("#"):
+            continue
+        FAILS.append(f"{path}:{i}: workflow would run an AddModule line: {line.strip()}")
+
+
 def main() -> int:
     for path in tracked_files():
-        if not path.is_file():
+        key = path.as_posix()
+        if key in SELF or not path.is_file():
             continue
         try:
             text = path.read_text(encoding="utf-8")
@@ -99,10 +155,11 @@ def main() -> int:
             check_python(path, text)
         elif suffix == ".md":
             check_markdown(path, text)
-        elif suffix == ".conf" or "speech-dispatcher" in str(path):
+        elif suffix in {".yml", ".yaml"}:
+            check_yaml(path, text)
+        elif suffix == ".conf" or "speech-dispatcher" in key:
             check_conf(path, text)
         else:
-            # binaries and anything else: any mention outside a comment is suspect
             for i, line in enumerate(text.splitlines(), 1):
                 if "AddModule" in line and not line.lstrip().startswith("#"):
                     FAILS.append(f"{path}:{i}: {line.strip()}")
