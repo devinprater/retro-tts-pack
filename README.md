@@ -61,6 +61,18 @@ Run:
 ./install.sh
 ```
 
+### NixOS
+
+A `flake.nix` is included (x86_64-linux). It patches the prebuilt binaries
+for the Nix store and runs the normal installer:
+
+```sh
+nix run github:devinprater/retro-tts-pack#install
+```
+
+or install it into your profile and run `retro-tts-pack-install`. The flake
+honours the same `install.sh` options, e.g. `--download-assets`.
+
 To download the checksum-pinned BeSTSpeech and Prose 2000 files published in
 their projects' GitHub releases:
 

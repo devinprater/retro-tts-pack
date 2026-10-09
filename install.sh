@@ -269,7 +269,7 @@ export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
 export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
 export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
 export RETRO_TTS_OUTSPOKEN_ROMS="\$INSTALL_DIR/assets/outspoken/outspoken-roms"
-exec python3 -m retro_tts.cli "\$@"
+exec ${RETRO_TTS_PYTHON:-python3} -m retro_tts.cli "\$@"
 EOF
 chmod 755 "$CLI"
 
@@ -367,7 +367,7 @@ cat >"$INSTALL_DIR/bin/retro-tts-server" <<EOF
 INSTALL_DIR='$INSTALL_DIR'
 export PYTHONPATH="\$INSTALL_DIR/app/src:\$INSTALL_DIR/vendor\${PYTHONPATH:+:\$PYTHONPATH}"
 export LD_LIBRARY_PATH="\$INSTALL_DIR/vendor/unicorn/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
-exec python3 -m retro_tts.server
+exec ${RETRO_TTS_PYTHON:-python3} -m retro_tts.server
 EOF
 chmod 755 "$INSTALL_DIR/bin/retro-tts-server"
 

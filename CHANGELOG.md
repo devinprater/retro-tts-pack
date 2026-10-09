@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added a `flake.nix` for NixOS (x86_64-linux): it patches the prebuilt
+  binaries for the Nix store and runs the normal installer via
+  `nix run github:devinprater/retro-tts-pack#install` (or the
+  `retro-tts-pack-install` wrapper). install.sh now honours a
+  RETRO_TTS_PYTHON variable (defaulting to `python3`) so the generated CLI
+  wrapper can use Nix's python.
+
 ## 1.1.3 - 2026-10-08
 
 - Fixed EchoTalk's default pitch: Orca's neutral setting now maps to the
