@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Fixed EchoTalk's default pitch: Orca's neutral setting now maps to the
+  engine's native default pitch 38 instead of rendering flat (issue #8).
+- Fixed BeSTSpeech pitch control being effectively frozen: its module config
+  used GenericPitchMultiply 0.5, collapsing Speech Dispatcher's -100..100
+  pitch range to a near-constant value. Restored to 50 like every other
+  engine, so pitch and inflection follow Orca's slider again.
+- Wired up the pack's patched Speech Dispatcher generic module
+  (bin/sd_retro_generic.x86_64, built from
+  native/speech-dispatcher/generic-real-voice-names.patch): the installer now
+  places it where Speech Dispatcher looks before the system module, so Orca
+  lists real voice names instead of every voice showing as "Male1" (issue
+  #7). The patch source was previously shipped but never installed.
+
 ## 1.1.2 - 2026-08-24
 
 - Stream L&H and Centigram TruVoice in phrase chunks so Orca can begin playback

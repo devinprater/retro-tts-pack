@@ -538,6 +538,29 @@ if [ -f "$SPEECHD_CONF" ] && grep -q 'BEGIN RETRO-TTS-PACK' "$SPEECHD_CONF"; the
     say "Removed this pack's AddModule block from $(basename "$SPEECHD_CONF"); speech-dispatcher discovers these modules by directory."
 fi
 
+# Install the pack's patched Speech Dispatcher generic module, built from
+# native/speech-dispatcher/generic-real-voice-names.patch: it reports the real
+# AddVoice names to Orca instead of the repeated "MALE1"/"FEMALE1" variant
+# (issue #7). Speech Dispatcher looks for the sd_generic binary in the user
+# module dir before the system one, so placing it there shadows the stock
+# module for every *-generic.conf without touching system files.
+USER_MODULE_DIR="$DATA_HOME/../libexec/speech-dispatcher-modules"
+mkdir -p "$USER_MODULE_DIR"
+case "$architecture" in
+    x86_64)
+        if [ -f "$ROOT/bin/sd_retro_generic.x86_64" ]; then
+            cp "$ROOT/bin/sd_retro_generic.x86_64" "$USER_MODULE_DIR/sd_generic"
+            chmod 755 "$USER_MODULE_DIR/sd_generic"
+            say "Installed the pack's patched Speech Dispatcher generic module (Orca lists real voice names)."
+        else
+            warn "sd_retro_generic.x86_64 not found in the pack; Orca may list voices by variant (e.g. Male1)"
+        fi
+        ;;
+    *)
+        warn "no patched Speech Dispatcher generic module ships for $architecture; Orca may list voices by variant (e.g. Male1)"
+        ;;
+esac
+
 if [ "${RETRO_TTS_SKIP_SYSTEMD:-0}" != 1 ] &&
    command -v systemctl >/dev/null 2>&1 &&
    systemctl --user show-environment >/dev/null 2>&1; then
