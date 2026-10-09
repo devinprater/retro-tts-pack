@@ -24,6 +24,12 @@
           pipewire # libpipewire-0.3.so.0
           pulseaudio # libpulse.so.0
         ];
+        # 32-bit libraries for leopard_host (Intel 80386).
+        ttsLibs32 = with pkgs.pkgsi686Linux; [
+          stdenv.cc.cc.lib
+          ffmpeg # libavcodec, libavutil, libswresample
+          sqlite # libsqlite3
+        ];
         retro-tts-pack = pkgs.stdenv.mkDerivation {
           pname = "retro-tts-pack";
           inherit version;
@@ -53,17 +59,25 @@
 
           # The prebuilt binaries expect /lib64/ld-linux-x86-64.so.2, which
           # does not exist on NixOS. Point executables at the nix loader and
-          # give every x86_64 object the libraries above via rpath, preserving
+          # give every x86 object the libraries above via rpath, preserving
           # any existing entries (notably the $ORIGIN RUNPATH on cgrm_spk).
+          # leopard_host is 32-bit and gets the i686 loader and libraries.
           # aarch64 objects ship for Pi users and are left untouched.
           postFixup = ''
-            interp="$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)"
-            libpath="${pkgs.lib.makeLibraryPath ttsLibs}"
+            interp64="$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)"
+            libpath64="${pkgs.lib.makeLibraryPath ttsLibs}"
+            interp32="$(cat ${pkgs.pkgsi686Linux.stdenv.cc}/nix-support/dynamic-linker)"
+            libpath32="${pkgs.lib.makeLibraryPath ttsLibs32}"
             find "$out/share/retro-tts-pack" -type f -print0 |
             while IFS= read -r -d "" f; do
               if ! head -c 4 "$f" | grep -q $'\x7fELF'; then continue; fi
-              # e_machine == EM_X86_64 (62); skip everything else.
-              if [ "$(od -An -t u2 -j 18 -N 2 "$f" | tr -d ' ')" != "62" ]; then continue; fi
+              # e_machine: 62 = x86-64, 3 = 80386; anything else is left alone.
+              mach="$(od -An -t u2 -j 18 -N 2 "$f" | tr -d ' ')"
+              case "$mach" in
+                62) interp="$interp64"; libpath="$libpath64" ;;
+                3) interp="$interp32"; libpath="$libpath32" ;;
+                *) continue ;;
+              esac
               if patchelf --print-interpreter "$f" >/dev/null 2>&1; then
                 patchelf --set-interpreter "$interp" "$f"
               fi
