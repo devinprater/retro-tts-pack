@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.3 - 2026-10-08
 
 - Fixed EchoTalk's default pitch: Orca's neutral setting now maps to the
   engine's native default pitch 38 instead of rendering flat (issue #8).
