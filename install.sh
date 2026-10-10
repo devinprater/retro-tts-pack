@@ -574,6 +574,23 @@ else
 fi
 # Sam, Mike, Mary and the OneCore voices need both their data and the binary
 # built from the vendored sources.
+# Why a module cannot run, in the right words. A missing Wine installation or a
+# missing 32-bit runtime is not missing engine data, and reporting it as such
+# sends people looking in the wrong place.
+case "$architecture" in
+    aarch64) APPLE_RUNTIME_NOTE="its engine data, and the aarch64 runtime: libc6, libstdc++6 and libgcc-s1, plus libsqlite3-0 for Leopard's dictionary. Leopard and Lion also need upstream's ARM64 host to render: it is missing a CoreFoundation shim, so those two are silent there and are left off" ;;
+    *) APPLE_RUNTIME_NOTE="its engine data, and either Wine or the 32-bit runtime for the native host: libc6:i386 and libstdc++6:i386, plus libsqlite3-0:i386 for Leopard's dictionary" ;;
+esac
+missing_notes=""
+skip_module() {
+    missing_modules="$missing_modules $1"
+    if [ -n "${2:-}" ]; then
+        missing_notes="$missing_notes
+  $1 needs $2"
+    fi
+    return 0
+}
+
 if [ ! -x "$INSTALL_DIR/bin/sam_say" ]; then
     warn "mssam needs bin/sam_say; install.sh builds it when a C compiler (cc) is available."
 fi
@@ -624,23 +641,6 @@ if [ -d "$ASSETS/outspoken/outspoken-roms" ] &&
    [ -f "$INSTALL_DIR/lib/libosp_host.$architecture.so" ]; then
     available_modules="$available_modules outspoken"
 else missing_modules="$missing_modules outspoken"; fi
-# Why a module cannot run, in the right words. A missing Wine installation or a
-# missing 32-bit runtime is not missing engine data, and reporting it as such
-# sends people looking in the wrong place.
-case "$architecture" in
-    aarch64) APPLE_RUNTIME_NOTE="its engine data, and the aarch64 runtime: libc6, libstdc++6 and libgcc-s1, plus libsqlite3-0 for Leopard's dictionary. Leopard and Lion also need upstream's ARM64 host to render: it is missing a CoreFoundation shim, so those two are silent there and are left off" ;;
-    *) APPLE_RUNTIME_NOTE="its engine data, and either Wine or the 32-bit runtime for the native host: libc6:i386 and libstdc++6:i386, plus libsqlite3-0:i386 for Leopard's dictionary" ;;
-esac
-missing_notes=""
-skip_module() {
-    missing_modules="$missing_modules $1"
-    if [ -n "${2:-}" ]; then
-        missing_notes="$missing_notes
-  $1 needs $2"
-    fi
-    return 0
-}
-
 # Does this host really render this generation on this machine? Upstream's ARM64
 # build is missing a CoreFoundation shim (_CFPropertyListCreateFromXMLData), which
 # leaves Leopard and Lion silent, so on aarch64 a generation is only enabled once
