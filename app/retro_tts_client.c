@@ -154,7 +154,13 @@ int main(int argc, char **argv) {
     char path[64]; snprintf(path, sizeof(path), "/proc/self/fd/%d", audio);
     pid_t child = fork();
     if (child == 0) {
+        /* execlp returns only when the name is not found, so this is a chain:
+           PipeWire's player, then the PulseAudio and ALSA ones.  A machine with
+           a compiler but no PipeWire tools should not be left with the Python
+           client, whose interpreter start-up costs about 45 ms per utterance. */
         execlp("pw-play", "pw-play", "--latency", "10ms", path, (char *)NULL);
+        execlp("paplay", "paplay", "--latency-msec=10", path, (char *)NULL);
+        execlp("aplay", "aplay", "-q", path, (char *)NULL);
         _exit(127);
     }
     if (child < 0) return failure;

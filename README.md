@@ -47,7 +47,10 @@ Requirements:
 - a C compiler (`cc`) for the engines built from source at install time:
   BeSTspeech, Centigram TruVoice, Microsoft Sam/Mike/Mary, and David/Zira/Mark
 - Speech Dispatcher with the `sd_generic` module
-- PipeWire's `pw-play` command
+- a command to play audio: PipeWire's `pw-play`, PulseAudio's `paplay`, or
+  ALSA's `aplay`, and the native client tries them in that order. The engines
+  that stream their audio (L&H, TrueVoice and Amiga Narrator) play through
+  `pw-play` themselves and do need it; the rest work with whichever is present
 - a working per-user systemd manager, recommended but not mandatory
 - Wine for WinTalker, and for Leopard Speech only when using its PE fallback
 
@@ -227,6 +230,18 @@ List configured modules:
 ```sh
 spd-say -O
 ```
+
+See which command the modules call, which is where roughly half the wait before
+a word is heard lives:
+
+```sh
+grep -A1 GenericExecuteSynth ~/.config/speech-dispatcher/modules/bestspeech-generic.conf
+```
+
+If it names `retro-tts-client`, the native client is in use and costs about two
+milliseconds. If it names `retro-tts`, no compiler was found at install time and
+every utterance pays a Python interpreter's start-up instead, roughly 45 ms
+measured, on every key press. Reinstalling with `cc` present fixes it.
 
 Render directly to a WAV file:
 

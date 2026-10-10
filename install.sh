@@ -39,7 +39,7 @@ python3 -c 'import sys; raise SystemExit(sys.version_info < (3, 10))' ||
 command -v speech-dispatcher >/dev/null 2>&1 ||
     warn "Speech Dispatcher is not installed; files will be installed but voices cannot be registered"
 command -v pw-play >/dev/null 2>&1 ||
-    warn "pw-play is missing; install PipeWire tools before using the voices"
+    warn "pw-play is missing; the streaming engines (L&H, TrueVoice and Amiga Narrator) need it, and the rest will use paplay or aplay"
 
 if [ "$download_assets" = ask ]; then
     if [ -t 0 ]; then
@@ -288,14 +288,16 @@ exec ${RETRO_TTS_PYTHON:-python3} -m retro_tts.cli "\$@"
 EOF
 chmod 755 "$CLI"
 
-# Speech Dispatcher starts GenericExecuteSynth once per utterance. Avoid a
-# fresh Python interpreter (roughly 40-50 ms on typical systems) on that hot
-# path when a C compiler and PipeWire are available. The regular Python CLI
-# remains installed for diagnostics, non-PipeWire systems, and manual use.
+# Speech Dispatcher starts GenericExecuteSynth once per utterance, and what it
+# starts is a process: a fresh Python interpreter costs roughly 40-50 ms there,
+# which measured is about half the wait before a word is heard. Build the native
+# client whenever a compiler is present. It plays through pw-play, paplay or
+# aplay, so PipeWire is not needed for the engines that hand their audio back to
+# the client. The regular Python CLI remains for diagnostics and manual use.
 SPEECHD_CLIENT="$CLI"
 CLIENT_SOURCE="$INSTALL_DIR/app/retro_tts_client.c"
 CLIENT_BINARY="$INSTALL_DIR/bin/retro-tts-client"
-if command -v cc >/dev/null 2>&1 && command -v pw-play >/dev/null 2>&1 &&
+if command -v cc >/dev/null 2>&1 &&
    cc -O2 -Wall -Wextra -o "$CLIENT_BINARY.tmp" "$CLIENT_SOURCE"; then
     chmod 755 "$CLIENT_BINARY.tmp"
     mv "$CLIENT_BINARY.tmp" "$CLIENT_BINARY"
@@ -303,7 +305,7 @@ if command -v cc >/dev/null 2>&1 && command -v pw-play >/dev/null 2>&1 &&
     say "Enabled the low-latency native Speech Dispatcher client."
 else
     rm -f "$CLIENT_BINARY.tmp"
-    warn "using the Python Speech Dispatcher client (install a C compiler and pw-play for lower onset latency)"
+    warn "using the Python Speech Dispatcher client (install a C compiler for lower onset latency)"
 fi
 
 # The three engines added with the vendored native sources are compiled here,

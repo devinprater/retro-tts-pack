@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Made the native Speech Dispatcher client work without PipeWire, and be built
+  whenever a compiler is present rather than only when `pw-play` is too. It
+  played only through `pw-play` while the Python command it replaces falls back
+  to `paplay` and `aplay`, so a machine with a compiler but no PipeWire tools was
+  left paying a Python interpreter's start-up on every utterance. Measured, that
+  is 48.6 ms against 2.1 ms for the native client, and about 45 ms off every key
+  press end to end through Speech Dispatcher: bestspeech's first sound goes from
+  102.9 ms to 58.0 ms, and L&H's paragraph from 94.9 ms to 57.5 ms. The client now
+  tries `pw-play`, then `paplay`, then `aplay`. Verified in that order, with the
+  audio byte for byte identical whichever one plays it. Nothing changes on a
+  machine that already had both, which keeps the native client.
+
 - Documented the one sound that is not this pack's. Speech Dispatcher still ships
   an `espeak-ng-mbrola` module whose pipeline pushes eSpeak's phonemes into
   MBROLA, which is usually not installed, so what comes out is broken eSpeak; and
