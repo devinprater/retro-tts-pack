@@ -237,6 +237,35 @@ retro-tts --persistent --engine stspeech --output test.wav --text "Test."
 If a proprietary engine reports a missing path, verify spelling and filename
 case under `~/.local/share/retro-tts-pack/assets`, then rerun `install.sh`.
 
+### If you hear broken eSpeak, or vowels that stutter
+
+That is not one of this pack's engines. Speech Dispatcher still ships a stock
+module, `espeak-ng-mbrola`, whose synthesis line pushes eSpeak's phonemes into
+MBROLA:
+
+```sh
+printf %s '$DATA' | espeak-ng -v mb-$VOICE -s $RATE -p $PITCH $PUNCT \
+  -q --stdin --pho | mbrola -v $VOLUME -e /usr/share/mbrola/$VOICE/$VOICE \
+  - -.au | $PLAY_COMMAND
+```
+
+MBROLA is usually not installed, so the last stage of that pipeline receives
+nothing while eSpeak still runs. The module ships anyway, and Speech Dispatcher
+chooses it whenever the output module that was asked for is not available.
+Because this pack sets neither `DefaultModule` nor `LanguageDefaultModule`, a
+pack engine that could not be loaded is exactly the case that lands there.
+
+So when a voice that is not one of the pack's speaks, check which module is
+really in use, and name one by hand if you want:
+
+```sh
+spd-say -O                                  # the modules Speech Dispatcher knows
+spd-say -w -o bestspeech "bestspeech is speaking"
+```
+
+`install.sh` prints which engines it could not load and what each one needs, so
+an engine missing its assets shows up there rather than only here, by ear.
+
 WinTalker requires a working x86_64 Wine installation. Leopard Speech prefers
 the native i386 Linux host when one is packaged and otherwise uses Wine.
 Neither engine runs on ARM64. WinTalker's small x86_64 host can be rebuilt with

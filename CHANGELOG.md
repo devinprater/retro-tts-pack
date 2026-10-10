@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Documented the one sound that is not this pack's. Speech Dispatcher still ships
+  an `espeak-ng-mbrola` module whose pipeline pushes eSpeak's phonemes into
+  MBROLA, which is usually not installed, so what comes out is broken eSpeak; and
+  because the pack sets no default module, an engine it could not load falls back
+  to exactly that. The troubleshooting notes now name it, give the module's own
+  command line, and say how to see which module is really speaking.
+
 - Moved L&H TTS3000's speaking-rate changer into C as well, in the same library.
   TTS3000 ignores SAPI rate settings on its file-render path, so the pack changes
   duration itself with an overlap-add, and written sample by sample in Python it
