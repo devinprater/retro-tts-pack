@@ -25,4 +25,6 @@ neither Wine nor FFmpeg, only the 32-bit runtime: `libc6:i386`,
 `libstdc++6:i386`, and `libsqlite3-0:i386` for Leopard's dictionary. The same
 binary serves all three generations, since the engine, dictionary and voice
 directory are arguments. Build it on another distribution with
-`./build_linux.sh i686` from <https://github.com/tgeczy/panthera-speech>.
+`sh ./build_linux.sh i686` from <https://github.com/tgeczy/panthera-speech>.
+Upstream records that script without its execute bit, so the plain `./`
+form fails with "Permission denied"; run it through `sh`.
