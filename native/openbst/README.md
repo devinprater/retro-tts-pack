@@ -40,6 +40,24 @@ and that nothing else covers it.
 `bst_cli` refuses a 1998 build by name even if it is asked for one, and
 `config/modules/bestspeech-generic.conf` lists no 1998 voice.
 
+## The 2006 builds stop at the first comma
+
+Worth knowing before offering them to a screen reader. A 2006 language build
+says only as far as the first comma in the text it is given, and everything
+after that comma is dropped. On a fixed line of twelve words the audio that
+comes out tracks the comma's position: 14% of the line when the comma follows
+the first word, 94% when it follows the eleventh. A paragraph that the classic
+build speaks in 19.4 s comes back from `2006ENG` in 2.6 s.
+
+This is the engine's own behaviour, not this front end's. `bst_cli` and upstream
+`bstspeak` return identical lengths, and `make selftest` passes 4906 of 4906
+goldens -- sample counts and hashes taken from the original Windows binaries --
+including the thirteen that contain a comma. The `b32_tts.dll` the pack used
+before openbst did the same.
+
+The classic 1995 build is not affected, which is why it is the default voice.
+`docs/ROADMAP.md` records the workaround, if the pack ever wants one.
+
 ## One change to upstream
 
 `expose-classic-settings.patch` adds two settings to `bst_set`, `exc` and

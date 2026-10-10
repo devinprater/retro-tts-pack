@@ -153,12 +153,15 @@ DOWNLOADS = (
     },
     {
         "name": "SoftVoice 2025.3.8 NVDA add-on (DECtalk.nu mirror)",
+        # The mirror renamed this file after the pack pinned it; the two
+        # DLLs below still hash as they are written here, so only the
+        # archive around them changed.
         "url": (
             "https://dectalk.nu/Software%20and%20Manuals/Software/"
-            "NVDA%20Add-ons/NVDA%202019.3%20and%20Beyond/softvoice-2026.nvda-addon"
+            "NVDA%20Add-ons/NVDA%202019.3%20and%20Beyond/softvoice-2026-3.nvda-addon"
         ),
         "archive_sha256": (
-            "46221c597db800d266efcc08f48028e6463115896a29d2b5c765bf6465f97ce0"
+            "7d029139b107858792e23e9afc51bf59c00e0d9cb4b9686bc46ed410eba11eb6"
         ),
         "files": {
             "synthDrivers/tibase32.dll": (
@@ -436,27 +439,51 @@ def main() -> int:
         print(f"Usage: {sys.argv[0]} ASSET_DIRECTORY", file=sys.stderr)
         return 2
     destination = Path(sys.argv[1]).expanduser().resolve()
+    # A source that has moved, or an archive that has been repacked, should
+    # cost its own asset and not every entry behind it in this list.  Collect
+    # what fails, install everything else, and report at the end with a failing
+    # exit status.  Nothing unverified reaches the destination either way:
+    # install_file checks a member before it writes it.
+    failures = []
     for item in DOWNLOADS:
         print(f"Downloading {item['name']}...")
-        archive = fetch(item.get("urls", item.get("url")))
-        actual = digest(archive)
-        if actual != item["archive_sha256"]:
-            raise RuntimeError(
-                f"archive checksum mismatch for {item['name']}: {actual}"
-            )
-        if "cab_dlls" in item:
-            install_cab_dlls(archive, destination / item["cab_dlls"])
+        try:
+            archive = fetch(item.get("urls", item.get("url")))
+            actual = digest(archive)
+            if actual != item["archive_sha256"]:
+                raise RuntimeError(
+                    f"archive checksum mismatch for {item['name']}: {actual}, "
+                    f"expected {item['archive_sha256']}"
+                )
+            if "cab_dlls" in item:
+                install_cab_dlls(archive, destination / item["cab_dlls"])
+                continue
+            with zipfile.ZipFile(io.BytesIO(archive)) as package:
+                if "files" in item:
+                    for member, (relative, expected) in item["files"].items():
+                        install_file(
+                            destination / relative, package.read(member), expected
+                        )
+                elif "tree_candidates" in item:
+                    candidates, relative = item["tree_candidates"]
+                    install_tree_candidates(package, candidates, destination / relative)
+                else:
+                    source_prefix, relative = item["tree"]
+                    install_tree(package, source_prefix, destination / relative)
+        except Exception as error:                  # noqa: BLE001
+            failures.append(f"{item['name']}: {error}")
+            print(f"  failed: {error}")
             continue
-        with zipfile.ZipFile(io.BytesIO(archive)) as package:
-            if "files" in item:
-                for member, (relative, expected) in item["files"].items():
-                    install_file(destination / relative, package.read(member), expected)
-            elif "tree_candidates" in item:
-                candidates, relative = item["tree_candidates"]
-                install_tree_candidates(package, candidates, destination / relative)
-            else:
-                source_prefix, relative = item["tree"]
-                install_tree(package, source_prefix, destination / relative)
+    if failures:
+        print("\nSome assets could not be installed:", file=sys.stderr)
+        for item in failures:
+            print(f"  {item}", file=sys.stderr)
+        print(
+            "\nThe engines that need them will report their data as missing. "
+            "Re-run when the sources are reachable again.",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

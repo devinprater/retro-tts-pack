@@ -85,7 +85,33 @@ sends users hunting for DLLs they already have.
 
 ---
 
-## 3. Atari ST Speech sounds different depending on whether numpy is installed
+## 3. The 2006 BeSTspeech builds stop at the first comma
+
+Measured, and reproduced from the original binaries, so it is the engine's
+behaviour and not the front end's.
+
+A language voice -- `English - fred`, `Spanish - fred` and the other ten -- says
+only as far as the first comma in what it is given; everything after that comma
+is dropped. On a fixed line of twelve words, the audio that comes out tracks the
+comma's position exactly, from 14% of the line with the comma after the first
+word to 94% with it after the eleventh. A paragraph the classic build speaks in
+19.4 s comes back from `2006ENG` in 2.6 s.
+
+`bst_cli` and upstream `bstspeak` return identical lengths, and openbst's own
+`make selftest` passes 4906 of 4906 goldens, which are sample counts and hashes
+recorded from the original Windows binaries, including the thirteen that contain
+a comma. The DLL the pack used before openbst did the same thing, so this is not
+new. The classic 1995 build is unaffected, which is why it is the default voice.
+
+**The fix, if it is wanted:** split the text at commas for the 2006 builds and
+say each piece in turn, joining them -- the same phrase machinery `lhtts` and
+`truevoice` already use. Each piece would then hold no comma and be said whole.
+It changes what those voices say, from part of a sentence to all of it, so it is
+a decision rather than a bug fix.
+
+---
+
+## 4. Atari ST Speech sounds different depending on whether numpy is installed
 
 Measured, and left alone because it is a behaviour question rather than a bug
 with one right answer.

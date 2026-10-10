@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Fixed the asset downloader, which could not finish. Its SoftVoice entry named
+  a file the mirror has since renamed, and one failing entry stopped every entry
+  behind it, so an install with `--download-assets` gave up at the sixth of
+  twenty-three and never reached the four Apple MacinTalk trees or the eleven
+  L&H packages -- the data the OutSpoken, Tiger, Leopard and Lion voices need.
+  The entry names the file the site serves now, whose two DLLs hash exactly as
+  they always did, and a failing entry now costs only its own asset and is
+  reported at the end with a failing exit status. All twenty-three sources were
+  checked, and all twenty-three answer.
+
 - Made BeSTspeech answer sooner, in the three places where the pack's own code
   was doing by hand what the engine does faster. The +12 dB the language builds
   need was applied a sample at a time in Python, and measured, that loop was 84
