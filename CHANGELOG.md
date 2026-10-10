@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Ran the Apple generations natively instead of under Wine. Tiger, Leopard and
+  Lion were gated on `command -v wine`, and Leopard and Tiger only used the
+  native host if a vendored binary passed its own AAC check. That binary was
+  built against FFmpeg 8's libraries, which no current distribution ships for
+  i386, so in practice the check always failed and all three went to Wine. The
+  pack now installs Panthera's own i686 Linux host from its pinned release: it
+  maps the Mach-O engine directly, with no Wine and no emulation, and carries
+  its own AAC decoder, so it needs neither FFmpeg nor an AAC package. What it
+  does need is the 32-bit runtime, `libc6:i386` and `libstdc++6:i386`, plus
+  `libsqlite3-0:i386` for Leopard's phrasing dictionary. Wine remains the
+  fallback where those are missing.
+
+  Measured on this machine, from Devin's own Tiger, Leopard and Lion data, with
+  no Wine installed: nine renders across the three generations, including the
+  AAC voices Alex and Vicki, all with real audio. Time to the first audio of a
+  paragraph, streamed: 11 ms Tiger, 21 ms Leopard, 11 ms Lion warm, 38 ms
+  Leopard cold. Five identical repeats came out byte for byte identical in all
+  three. Cancelling mid-stream, which is what pressing Control to silence Orca
+  does, stopped after 0.14 s of audio inside 65 to 142 ms and left the host
+  usable for the next utterance.
+
+- Stopped retiring the native host after every streamed response. The driver
+  did that because the older host was reliable for a single Alex utterance; the
+  pinned host repeats identically, so the retire only cost a host start per
+  utterance. Tiger's and Lion's availability checks now consult the chosen
+  backend instead of demanding Wine, and the end of the install says what a
+  skipped module actually needs rather than calling a missing Wine or a missing
+  32-bit runtime "missing proprietary assets".
+
 - Made the native Speech Dispatcher client work without PipeWire, and be built
   whenever a compiler is present rather than only when `pw-play` is too. It
   played only through `pw-play` while the Python command it replaces falls back

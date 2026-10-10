@@ -22,11 +22,14 @@ WinTalker support includes only the open integration host. `WinTalker.dll` and
 `English.lex` are installed from the separately published NVDA add-on when the
 optional downloader is used; they are not redistributed in release archives.
 
-Leopard Speech support includes the open integration host from tiger-speech.
-The optional downloader can install separately published Tiger, Leopard, and
-Lion Mac OS X engines, SpeechDictionary frameworks, and voices from
-DECtalk.nu's Apple directory, but they are not redistributed in release
-archives.
+Tiger, Leopard and Lion MacinTalk support includes the open integration host
+from <https://github.com/tgeczy/panthera-speech>, which the optional downloader
+installs from that project's pinned i686 Linux release. The host carries the
+Glint AAC decoder, by CrispStrobe, whose MIT notice is retained in
+`licenses/tiger-speech/` beside Panthera's. The optional downloader can install
+separately published Tiger, Leopard, and Lion Mac OS X engines,
+SpeechDictionary frameworks, and voices from DECtalk.nu's Apple directory, but
+they are not redistributed in release archives.
 
 Native engine sources are vendored under `native/`, each under its own MIT
 license in `licenses/`:

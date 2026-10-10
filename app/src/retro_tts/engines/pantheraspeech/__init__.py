@@ -374,13 +374,6 @@ def stream_pcm(
                     interrupted = True
                     if _host_key and not _host_key[4]:
                         process.send_signal(signal.SIGUSR1)
-            if _host_key and not _host_key[4]:
-                # Leopard's Linux AudioConverter path is currently reliable
-                # for one Alex utterance only. Retire it after every streamed
-                # response and preload a clean process before releasing the
-                # lock. This also makes cancellation recovery deterministic.
-                _stop_host()
-                _get_host(generation)
         except (BrokenPipeError, OSError):
             _stop_host()
             raise RuntimeError(f"{generation} host failed") from None

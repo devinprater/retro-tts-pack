@@ -366,17 +366,32 @@ if [ -f "$ROOT/native/audio/build.sh" ] && command -v cc >/dev/null 2>&1; then
 fi
 build_native_engine "BeSTspeech / Keynote Gold" openbst bst_cli
 
+# The Apple generations run through Panthera's own i686 host, which maps the
+# Mach-O engine directly: no Wine, no emulation, no CPU translation. It carries
+# its own Glint AAC decoder, so what it wants from the system is only the 32-bit
+# runtime libraries: libc6:i386 and libstdc++6:i386, and libsqlite3-0:i386 for
+# Leopard's phrasing dictionary. Wine stays as the fallback for machines without
+# those, where the PE host is the only route left.
+PANTHERA_HOST="$INSTALL_DIR/bin/panthera_host"
+if [ -f "$ASSETS/panthera/tiger_host" ]; then
+    cp "$ASSETS/panthera/tiger_host" "$PANTHERA_HOST"
+    chmod 755 "$PANTHERA_HOST"
+fi
 LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 LEOPARD_BACKEND=wine
-if [ -x "$INSTALL_DIR/bin/leopard_host" ] &&
-   "$INSTALL_DIR/bin/leopard_host" --aac-check >/dev/null 2>&1; then
-    LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host"
-    LEOPARD_BACKEND=native
-fi
-TIGER_HOST="$LEOPARD_HOST"
-TIGER_BACKEND="$LEOPARD_BACKEND"
+TIGER_HOST="$INSTALL_DIR/bin/leopard_host.exe"
+TIGER_BACKEND=wine
 LION_HOST="$INSTALL_DIR/bin/panthera_host.exe"
 LION_BACKEND=wine
+if [ -x "$PANTHERA_HOST" ] && "$PANTHERA_HOST" --aac-check >/dev/null 2>&1; then
+    LEOPARD_HOST="$PANTHERA_HOST"
+    LEOPARD_BACKEND=native
+    TIGER_HOST="$PANTHERA_HOST"
+    TIGER_BACKEND=native
+    LION_HOST="$PANTHERA_HOST"
+    LION_BACKEND=native
+    say "The Apple generations will run natively, without Wine."
+fi
 
 cat >"$SYSTEMD_DIR/retro-tts.service" <<EOF
 [Unit]
@@ -568,11 +583,25 @@ if [ -d "$ASSETS/outspoken/outspoken-roms" ] &&
    [ -f "$INSTALL_DIR/lib/libosp_host.$architecture.so" ]; then
     available_modules="$available_modules outspoken"
 else missing_modules="$missing_modules outspoken"; fi
+# Why a module cannot run, in the right words. A missing Wine installation or a
+# missing 32-bit runtime is not missing engine data, and reporting it as such
+# sends people looking in the wrong place.
+APPLE_RUNTIME_NOTE="its engine data, and either Wine or the 32-bit runtime for the native host: libc6:i386 and libstdc++6:i386, plus libsqlite3-0:i386 for Leopard's dictionary"
+missing_notes=""
+skip_module() {
+    missing_modules="$missing_modules $1"
+    if [ -n "${2:-}" ]; then
+        missing_notes="$missing_notes
+  $1 needs $2"
+    fi
+    return 0
+}
+
 if [ "$architecture" = x86_64 ] &&
    has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
    command -v wine >/dev/null 2>&1; then
     available_modules="$available_modules wintalker"
-else missing_modules="$missing_modules wintalker"; fi
+else skip_module wintalker "Wine"; fi
 if [ "$architecture" = x86_64 ] &&
    has_all \
     "$ASSETS/leopardspeech/leopardspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
@@ -581,16 +610,17 @@ if [ "$architecture" = x86_64 ] &&
    { { [ "$LEOPARD_BACKEND" = native ] && [ -x "$LEOPARD_HOST" ]; } ||
      { [ -f "$LEOPARD_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
     available_modules="$available_modules leopardspeech"
-else missing_modules="$missing_modules leopardspeech"; fi
+else skip_module leopardspeech "$APPLE_RUNTIME_NOTE"; fi
 if [ "$architecture" = x86_64 ] &&
    has_all \
     "$ASSETS/tigerspeech/tigerspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
     "$ASSETS/tigerspeech/tigerspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" \
     "$INSTALL_DIR/bin/leopard_host.exe" &&
    [ -d "$ASSETS/tigerspeech/tigerspeech-data/Speech/Voices" ] &&
-   command -v wine >/dev/null 2>&1; then
+   { { [ "$TIGER_BACKEND" = native ] && [ -x "$TIGER_HOST" ]; } ||
+     { [ -f "$TIGER_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
     available_modules="$available_modules tigerspeech"
-else missing_modules="$missing_modules tigerspeech"; fi
+else skip_module tigerspeech "$APPLE_RUNTIME_NOTE"; fi
 if [ "$architecture" = x86_64 ] &&
    has_all \
     "$ASSETS/lionspeech/lionspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
@@ -599,9 +629,10 @@ if [ "$architecture" = x86_64 ] &&
     "$ASSETS/lionspeech/lionspeech-data/libc++abi.dylib" \
     "$INSTALL_DIR/bin/panthera_host.exe" &&
    [ -d "$ASSETS/lionspeech/lionspeech-data/Speech/Voices" ] &&
-   command -v wine >/dev/null 2>&1; then
+   { { [ "$LION_BACKEND" = native ] && [ -x "$LION_HOST" ]; } ||
+     { [ -f "$LION_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
     available_modules="$available_modules lionspeech"
-else missing_modules="$missing_modules lionspeech"; fi
+else skip_module lionspeech "$APPLE_RUNTIME_NOTE"; fi
 
 for module in $available_modules; do
     source="$INSTALL_DIR/config/modules/$module-generic.conf"
@@ -693,7 +724,10 @@ if [ -n "$unsupported_modules" ]; then
     say "  No asset can fix it -- see issue #4."
 fi
 if [ -n "$missing_modules" ]; then
-    say "Skipped modules missing proprietary assets:$missing_modules"
+    say "Skipped modules that cannot run here:$missing_modules"
+    if [ -n "$missing_notes" ]; then
+        printf '%s\n' "$missing_notes"
+    fi
     say "Copy those assets into $ASSETS and run install.sh again."
 fi
 say "Installation directory: $INSTALL_DIR"

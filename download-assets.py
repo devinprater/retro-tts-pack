@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.request
 import zipfile
@@ -16,6 +17,26 @@ from pathlib import Path
 
 
 DOWNLOADS = (
+    {
+        "name": "Panthera native i686 Linux host (Tiger, Leopard, Lion MacinTalk)",
+        "url": (
+            "https://github.com/tgeczy/panthera-speech/releases/download/"
+            "pantheraspeech/v3.3.2/panthera-linux-i686-3.3.2.tar.gz"
+        ),
+        "archive_sha256": (
+            "f7b61d3af84d22f98e4028db62525ca2c0c004dd6ccd5b133dfb7ee5e3a6f6c7"
+        ),
+        # A tar rather than a zip, so main() opens it with tarfile. The host
+        # maps the Mach-O engine directly and needs no Wine, and it carries its
+        # own Glint AAC decoder, so it links neither FFmpeg nor an AAC library.
+        "tar": True,
+        "files": {
+            "tiger_host": (
+                "panthera/tiger_host",
+                "0f3d57fa38e166df540873cdfa4f956c311e0597eba89c5248357c17fd7d7ee4",
+            ),
+        },
+    },
     {
         "name": "Prose 2000 v1.1.0 NVDA add-on release",
         "url": (
@@ -283,6 +304,16 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def member_bytes(package: object, member: str) -> bytes:
+    """Read one member, from either archive kind the list uses."""
+    if isinstance(package, tarfile.TarFile):
+        handle = package.extractfile(member)
+        if handle is None:
+            raise RuntimeError(f"{member} is not a file in the archive")
+        return handle.read()
+    return package.read(member)
+
+
 def fetch(urls: str | tuple[str, ...]) -> bytes:
     if isinstance(urls, str):
         urls = (urls,)
@@ -458,11 +489,17 @@ def main() -> int:
             if "cab_dlls" in item:
                 install_cab_dlls(archive, destination / item["cab_dlls"])
                 continue
-            with zipfile.ZipFile(io.BytesIO(archive)) as package:
+            if item.get("tar"):
+                opened = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
+            else:
+                opened = zipfile.ZipFile(io.BytesIO(archive))
+            with opened as package:
                 if "files" in item:
                     for member, (relative, expected) in item["files"].items():
                         install_file(
-                            destination / relative, package.read(member), expected
+                            destination / relative,
+                            member_bytes(package, member),
+                            expected,
                         )
                 elif "tree_candidates" in item:
                     candidates, relative = item["tree_candidates"]

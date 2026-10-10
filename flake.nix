@@ -24,10 +24,11 @@
           pipewire # libpipewire-0.3.so.0
           pulseaudio # libpulse.so.0
         ];
-        # 32-bit libraries for leopard_host (Intel 80386).
+        # 32-bit libraries for the Panthera host (Intel 80386): glibc, libgcc
+        # and libstdc++, plus SQLite for Leopard's phrasing dictionary. It needs
+        # no FFmpeg; its AAC decoder is compiled into it.
         ttsLibs32 = with pkgs.pkgsi686Linux; [
           stdenv.cc.cc.lib
-          ffmpeg # libavcodec, libavutil, libswresample
           sqlite # libsqlite3
         ];
         retro-tts-pack = pkgs.stdenv.mkDerivation {
@@ -61,7 +62,7 @@
           # does not exist on NixOS. Point executables at the nix loader and
           # give every x86 object the libraries above via rpath, preserving
           # any existing entries (notably the $ORIGIN RUNPATH on cgrm_spk).
-          # leopard_host is 32-bit and gets the i686 loader and libraries.
+          # The Panthera host is 32-bit and gets the i686 loader and libraries.
           # aarch64 objects ship for Pi users and are left untouched.
           postFixup = ''
             interp64="$(cat ${pkgs.stdenv.cc}/nix-support/dynamic-linker)"

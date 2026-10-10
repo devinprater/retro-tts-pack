@@ -15,5 +15,14 @@ The Python adapter sets the switch automatically whenever it launches the
 host through Wine.
 
 The source change is retained in `wine-aac.patch`; apply it to the shared
-loader checkout before building. The checked-in executable was cross-built
-from that source with Clang and Fedora's MinGW32 headers and libraries.
+loader checkout before building. The cross-built executable is the Wine
+fallback.
+
+The Wine-free route is upstream's own i686 Linux build of the same loader,
+which the optional downloader installs as `bin/panthera_host`. It maps the
+Mach-O engine directly and carries its own Glint AAC decoder, so it needs
+neither Wine nor FFmpeg, only the 32-bit runtime: `libc6:i386`,
+`libstdc++6:i386`, and `libsqlite3-0:i386` for Leopard's dictionary. The same
+binary serves all three generations, since the engine, dictionary and voice
+directory are arguments. Build it on another distribution with
+`./build_linux.sh i686` from <https://github.com/tgeczy/panthera-speech>.

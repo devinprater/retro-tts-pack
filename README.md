@@ -52,11 +52,16 @@ Requirements:
   that stream their audio (L&H, TrueVoice and Amiga Narrator) play through
   `pw-play` themselves and do need it; the rest work with whichever is present
 - a working per-user systemd manager, recommended but not mandatory
-- Wine for WinTalker, and for Leopard Speech only when using its PE fallback
+- for the Apple generations, Tiger, Leopard and Lion, the 32-bit runtime
+  libraries: `libc6:i386` and `libstdc++6:i386`, and `libsqlite3-0:i386` for
+  Leopard's phrasing dictionary. They run natively and need no Wine
+- Wine only as a fallback: for WinTalker, and for the Apple generations on a
+  machine without those 32-bit libraries
 
-Native Leopard Speech additionally needs the distribution's 32-bit/i686
-runtime libraries for glibc, FFmpeg (`libavcodec`, `libavutil`, and
-`libswresample`), and SQLite.
+Those three run through Panthera's own i686 host, which maps the Mach-O engine
+directly, with no Wine and no emulation, and carries its own AAC decoder, so it
+needs neither Wine nor FFmpeg. `install.sh` does not build it; the optional
+downloader installs it from that project's pinned release.
 
 The included native binaries target a recent glibc-based Linux distribution.
 If the loader reports a missing `GLIBC` or `GLIBCXX` version, rebuild the
@@ -281,10 +286,12 @@ spd-say -w -o bestspeech "bestspeech is speaking"
 `install.sh` prints which engines it could not load and what each one needs, so
 an engine missing its assets shows up there rather than only here, by ear.
 
-WinTalker requires a working x86_64 Wine installation. Leopard Speech prefers
-the native i386 Linux host when one is packaged and otherwise uses Wine.
-Neither engine runs on ARM64. WinTalker's small x86_64 host can be rebuilt with
-`make -C native/wintalker` when `winegcc` is installed.
+WinTalker requires a working x86_64 Wine installation. The Apple generations
+prefer the native i386 Linux host and use Wine only where the 32-bit runtime is
+missing. Neither route exists on ARM64 in this pack, where upstream's own
+aarch64 host is an open question rather than a promise. WinTalker's small
+x86_64 host can be rebuilt with `make -C native/wintalker` when `winegcc` is
+installed.
 
 ## Raspberry Pi notes
 
