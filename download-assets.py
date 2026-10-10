@@ -18,6 +18,35 @@ from pathlib import Path
 
 DOWNLOADS = (
     {
+        "name": "Panthera native aarch64 Linux host (Tiger, Leopard, Lion MacinTalk)",
+        "url": (
+            "https://github.com/tgeczy/panthera-speech/releases/download/"
+            "pantheraspeech/v3.3.2/panthera-linux-aarch64-3.3.2.tar.gz"
+        ),
+        "archive_sha256": (
+            "b9aa6f7f47bd38af9f209f1743612fb5626cc7b7d27937c61ca68edf41b00302"
+        ),
+        # The ARM64 build runs Apple's i386 engine through Box64, linked in, with
+        # the same Glint decoder: no Wine, and no translator to install. Its
+        # runtime is aarch64 glibc, libstdc++ and libgcc, plus libsqlite3-0 for
+        # Leopard's phrasing dictionary.
+        "tar": True,
+        "files": {
+            "tiger_host": (
+                "panthera-aarch64/tiger_host",
+                "e14b2c2c3b8cd293617347109089dc5afd4b0b6f02046dec338f3d441354446d",
+            ),
+            "licenses/box64-LICENSE.txt": (
+                "panthera-aarch64/licenses/box64-LICENSE.txt",
+                "18731c3637a3dfc5859be67db7d315d438c531396a4ed15a9c88421b520e7883",
+            ),
+            "licenses/Box-component-notices.txt": (
+                "panthera-aarch64/licenses/Box-component-notices.txt",
+                "c7ee4c003d73304f8a275763febb3221455139e765b2b05ca6bf211dc14b1e63",
+            ),
+        },
+    },
+    {
         "name": "Panthera native i686 Linux host (Tiger, Leopard, Lion MacinTalk)",
         "url": (
             "https://github.com/tgeczy/panthera-speech/releases/download/"

@@ -24,7 +24,9 @@ optional downloader is used; they are not redistributed in release archives.
 
 Tiger, Leopard and Lion MacinTalk support includes the open integration host
 from <https://github.com/tgeczy/panthera-speech>, which the optional downloader
-installs from that project's pinned i686 Linux release. The host carries the
+installs from that project's pinned Linux releases: the i686 one on x86_64, and
+the aarch64 one on ARM, which links Box64 (MIT, notices retained as
+`licenses/tiger-speech/box64-LICENSE.txt` and `Box-component-notices.txt`). The host carries the
 Glint AAC decoder, by CrispStrobe, whose MIT notice is retained in
 `licenses/tiger-speech/` beside Panthera's. The optional downloader can install
 separately published Tiger, Leopard, and Lion Mac OS X engines,

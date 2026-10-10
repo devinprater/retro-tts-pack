@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Gave the Apple generations an ARM64 host, so they no longer need x86_64. The
+  optional downloader installs Panthera's pinned aarch64 release, which runs
+  Apple's i386 engine through Box64, linked into it, with the same Glint AAC
+  decoder. There is no Wine and no translator to install, and it needs only the
+  aarch64 runtime: `libc6`, `libstdc++6`, `libgcc-s1`, and `libsqlite3-0` for
+  Leopard's phrasing dictionary.
+
+  Tiger speaks through it. **Leopard and Lion are not enabled on aarch64**, and
+  that is deliberate: upstream's ARM64 build is missing the CoreFoundation shim
+  `_CFPropertyListCreateFromXMLData`, which returns null, so the dictionary never
+  loads and the two generations return silence. Verified under qemu-aarch64 with
+  an aarch64 rootfs, where the host's own log shows `[uc] missing shim called:
+  _CFPropertyListCreateFromXMLData -> 0` at exactly the point the x86_64 build
+  logs `[shim] first call: _CFPropertyListCreateFromXMLData`. Silence is worse
+  than absence for a screen reader: Speech Dispatcher falls back to eSpeak and
+  the user hears the wrong voice, so the installer now renders one formant voice
+  and requires samples before it enables a generation on aarch64. Tiger's
+  default voice also changes to Fred there, because the AAC voices are among the
+  ones that come out silent.
+
+  The architecture can be forced with `RETRO_TTS_ARCH` so this path can be
+  installed and checked on an x86 machine, which is how it was tested.
+
 - Ran the Apple generations natively instead of under Wine. Tiger, Leopard and
   Lion were gated on `command -v wine`, and Leopard and Tiger only used the
   native host if a vendored binary passed its own AAC check. That binary was

@@ -28,7 +28,9 @@ for argument in "$@"; do
     esac
 done
 
-architecture=$(uname -m)
+# RETRO_TTS_ARCH forces the architecture, which is how the aarch64 path is
+# exercised on an x86 machine under qemu's binfmt registration.
+architecture=${RETRO_TTS_ARCH:-$(uname -m)}
 case "$architecture" in
     x86_64|aarch64) ;;
     *) die "this binary pack supports x86_64 and aarch64 Linux only" ;;
@@ -366,16 +368,28 @@ if [ -f "$ROOT/native/audio/build.sh" ] && command -v cc >/dev/null 2>&1; then
 fi
 build_native_engine "BeSTspeech / Keynote Gold" openbst bst_cli
 
-# The Apple generations run through Panthera's own i686 host, which maps the
-# Mach-O engine directly: no Wine, no emulation, no CPU translation. It carries
-# its own Glint AAC decoder, so what it wants from the system is only the 32-bit
-# runtime libraries: libc6:i386 and libstdc++6:i386, and libsqlite3-0:i386 for
-# Leopard's phrasing dictionary. Wine stays as the fallback for machines without
-# those, where the PE host is the only route left.
+# The Apple generations run through Panthera's own host for this machine. On
+# x86_64 that host maps the Mach-O engine directly: no Wine, no emulation, no CPU
+# translation, and it wants only the 32-bit runtime (libc6:i386, libstdc++6:i386,
+# and libsqlite3-0:i386 for Leopard's phrasing dictionary). On aarch64 the same
+# engine runs through Box64, which is linked into that host, so it wants only the
+# same libraries in their 64-bit ARM form. Both carry their own Glint AAC decoder,
+# so neither needs FFmpeg. Wine stays as the fallback where the host cannot run,
+# and only on x86_64, where the PE host exists.
 PANTHERA_HOST="$INSTALL_DIR/bin/panthera_host"
-if [ -f "$ASSETS/panthera/tiger_host" ]; then
-    cp "$ASSETS/panthera/tiger_host" "$PANTHERA_HOST"
+case "$architecture" in
+    x86_64)  PANTHERA_SOURCE="$ASSETS/panthera/tiger_host" ;;
+    aarch64) PANTHERA_SOURCE="$ASSETS/panthera-aarch64/tiger_host" ;;
+esac
+if [ -f "$PANTHERA_SOURCE" ]; then
+    cp "$PANTHERA_SOURCE" "$PANTHERA_HOST"
     chmod 755 "$PANTHERA_HOST"
+fi
+# The ARM64 host links Box64, so its notice travels with it.
+if [ -d "$ASSETS/panthera-aarch64/licenses" ] &&
+   [ -d "$INSTALL_DIR/licenses/tiger-speech" ]; then
+    cp "$ASSETS/panthera-aarch64/licenses/"*.txt \
+        "$INSTALL_DIR/licenses/tiger-speech/" 2>/dev/null || true
 fi
 LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 LEOPARD_BACKEND=wine
@@ -383,6 +397,13 @@ TIGER_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 TIGER_BACKEND=wine
 LION_HOST="$INSTALL_DIR/bin/panthera_host.exe"
 LION_BACKEND=wine
+# The ARM64 build of the host is silent on the AAC voices, so Tiger opens with a
+# formant voice there. Fred is the one that has always worked.
+if [ "$architecture" = aarch64 ]; then
+    TIGER_VOICE=Fred
+else
+    TIGER_VOICE=Vicki
+fi
 if [ -x "$PANTHERA_HOST" ] && "$PANTHERA_HOST" --aac-check >/dev/null 2>&1; then
     LEOPARD_HOST="$PANTHERA_HOST"
     LEOPARD_BACKEND=native
@@ -390,7 +411,11 @@ if [ -x "$PANTHERA_HOST" ] && "$PANTHERA_HOST" --aac-check >/dev/null 2>&1; then
     TIGER_BACKEND=native
     LION_HOST="$PANTHERA_HOST"
     LION_BACKEND=native
-    say "The Apple generations will run natively, without Wine."
+    if [ "$architecture" = aarch64 ]; then
+        say "The Apple generations will run through Box64, with no Wine."
+    else
+        say "The Apple generations will run natively, without Wine."
+    fi
 fi
 
 cat >"$SYSTEMD_DIR/retro-tts.service" <<EOF
@@ -441,7 +466,7 @@ Environment=RETRO_TTS_LEOPARD_VOICE=Alex
 Environment=RETRO_TTS_TIGER_HOST=$TIGER_HOST
 Environment=RETRO_TTS_TIGER_BACKEND=$TIGER_BACKEND
 Environment=RETRO_TTS_TIGER_TREE=$INSTALL_DIR/assets/tigerspeech/tigerspeech-data
-Environment=RETRO_TTS_TIGER_VOICE=Vicki
+Environment=RETRO_TTS_TIGER_VOICE=$TIGER_VOICE
 Environment=RETRO_TTS_LION_HOST=$LION_HOST
 Environment=RETRO_TTS_LION_BACKEND=$LION_BACKEND
 Environment=RETRO_TTS_LION_TREE=$INSTALL_DIR/assets/lionspeech/lionspeech-data
@@ -586,7 +611,10 @@ else missing_modules="$missing_modules outspoken"; fi
 # Why a module cannot run, in the right words. A missing Wine installation or a
 # missing 32-bit runtime is not missing engine data, and reporting it as such
 # sends people looking in the wrong place.
-APPLE_RUNTIME_NOTE="its engine data, and either Wine or the 32-bit runtime for the native host: libc6:i386 and libstdc++6:i386, plus libsqlite3-0:i386 for Leopard's dictionary"
+case "$architecture" in
+    aarch64) APPLE_RUNTIME_NOTE="its engine data, and the aarch64 runtime: libc6, libstdc++6 and libgcc-s1, plus libsqlite3-0 for Leopard's dictionary. Leopard and Lion also need upstream's ARM64 host to render: it is missing a CoreFoundation shim, so those two are silent there and are left off" ;;
+    *) APPLE_RUNTIME_NOTE="its engine data, and either Wine or the 32-bit runtime for the native host: libc6:i386 and libstdc++6:i386, plus libsqlite3-0:i386 for Leopard's dictionary" ;;
+esac
 missing_notes=""
 skip_module() {
     missing_modules="$missing_modules $1"
@@ -597,40 +625,74 @@ skip_module() {
     return 0
 }
 
+# Does this host really render this generation on this machine? Upstream's ARM64
+# build is missing a CoreFoundation shim (_CFPropertyListCreateFromXMLData), which
+# leaves Leopard and Lion silent, so on aarch64 a generation is only enabled once
+# a formant voice has produced samples. A synthesizer that says nothing is worse
+# than one that is not offered: Speech Dispatcher falls back to eSpeak.
+panthera_renders() {
+    tree=$1
+    probe="${TMPDIR:-/tmp}/panthera-probe.$$.wav"
+    if ! "$PANTHERA_HOST" --render --tree "$tree" --voice Fred \
+         --text "Testing one two three" --output "$probe" >/dev/null 2>&1; then
+        rm -f "$probe"
+        return 1
+    fi
+    size=$(wc -c <"$probe" 2>/dev/null || echo 0)
+    rm -f "$probe"
+    # The header alone is 44 bytes, and silence is that and nothing else.
+    [ "$size" -gt 5000 ]
+}
+
+panthera_ok() {
+    [ "$architecture" = aarch64 ] || return 0
+    panthera_renders "$1"
+}
+
+# Whether a Panthera generation can actually run here: its own host, or the Wine
+# fallback where Wine exists, which is x86_64 alone.
+panthera_ready() {
+    if [ "$1" = native ] && [ -x "$2" ]; then
+        return 0
+    fi
+    if [ "$architecture" = x86_64 ] && [ -f "$2" ] && command -v wine >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
 if [ "$architecture" = x86_64 ] &&
    has_all "$ASSETS/wintalker/WinTalker.dll" "$ASSETS/wintalker/English.lex" &&
    command -v wine >/dev/null 2>&1; then
     available_modules="$available_modules wintalker"
 else skip_module wintalker "Wine"; fi
-if [ "$architecture" = x86_64 ] &&
+if { [ "$architecture" = x86_64 ] || [ "$architecture" = aarch64 ]; } &&
    has_all \
     "$ASSETS/leopardspeech/leopardspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
     "$ASSETS/leopardspeech/leopardspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" &&
    [ -d "$ASSETS/leopardspeech/leopardspeech-data/Speech/Voices" ] &&
-   { { [ "$LEOPARD_BACKEND" = native ] && [ -x "$LEOPARD_HOST" ]; } ||
-     { [ -f "$LEOPARD_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
+   panthera_ready "$LEOPARD_BACKEND" "$LEOPARD_HOST" &&
+   panthera_ok "$ASSETS/leopardspeech/leopardspeech-data"; then
     available_modules="$available_modules leopardspeech"
 else skip_module leopardspeech "$APPLE_RUNTIME_NOTE"; fi
-if [ "$architecture" = x86_64 ] &&
+if { [ "$architecture" = x86_64 ] || [ "$architecture" = aarch64 ]; } &&
    has_all \
     "$ASSETS/tigerspeech/tigerspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
-    "$ASSETS/tigerspeech/tigerspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" \
-    "$INSTALL_DIR/bin/leopard_host.exe" &&
+    "$ASSETS/tigerspeech/tigerspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" &&
    [ -d "$ASSETS/tigerspeech/tigerspeech-data/Speech/Voices" ] &&
-   { { [ "$TIGER_BACKEND" = native ] && [ -x "$TIGER_HOST" ]; } ||
-     { [ -f "$TIGER_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
+   panthera_ready "$TIGER_BACKEND" "$TIGER_HOST" &&
+   panthera_ok "$ASSETS/tigerspeech/tigerspeech-data"; then
     available_modules="$available_modules tigerspeech"
 else skip_module tigerspeech "$APPLE_RUNTIME_NOTE"; fi
-if [ "$architecture" = x86_64 ] &&
+if { [ "$architecture" = x86_64 ] || [ "$architecture" = aarch64 ]; } &&
    has_all \
     "$ASSETS/lionspeech/lionspeech-data/Speech/Synthesizers/MacinTalk.SpeechSynthesizer/Contents/MacOS/MacinTalk" \
     "$ASSETS/lionspeech/lionspeech-data/SpeechDictionary.framework/Versions/A/SpeechDictionary" \
     "$ASSETS/lionspeech/lionspeech-data/libstdc++.6.0.9.dylib" \
-    "$ASSETS/lionspeech/lionspeech-data/libc++abi.dylib" \
-    "$INSTALL_DIR/bin/panthera_host.exe" &&
+    "$ASSETS/lionspeech/lionspeech-data/libc++abi.dylib" &&
    [ -d "$ASSETS/lionspeech/lionspeech-data/Speech/Voices" ] &&
-   { { [ "$LION_BACKEND" = native ] && [ -x "$LION_HOST" ]; } ||
-     { [ -f "$LION_HOST" ] && command -v wine >/dev/null 2>&1; }; }; then
+   panthera_ready "$LION_BACKEND" "$LION_HOST" &&
+   panthera_ok "$ASSETS/lionspeech/lionspeech-data"; then
     available_modules="$available_modules lionspeech"
 else skip_module lionspeech "$APPLE_RUNTIME_NOTE"; fi
 

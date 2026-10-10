@@ -52,16 +52,18 @@ Requirements:
   that stream their audio (L&H, TrueVoice and Amiga Narrator) play through
   `pw-play` themselves and do need it; the rest work with whichever is present
 - a working per-user systemd manager, recommended but not mandatory
-- for the Apple generations, Tiger, Leopard and Lion, the 32-bit runtime
-  libraries: `libc6:i386` and `libstdc++6:i386`, and `libsqlite3-0:i386` for
-  Leopard's phrasing dictionary. They run natively and need no Wine
-- Wine only as a fallback: for WinTalker, and for the Apple generations on a
-  machine without those 32-bit libraries
+- for the Apple generations, Tiger, Leopard and Lion: on x86_64 the 32-bit
+  runtime, `libc6:i386` and `libstdc++6:i386`; on aarch64 the 64-bit one,
+  `libc6`, `libstdc++6` and `libgcc-s1`. Either way `libsqlite3` (`:i386` on
+  x86_64) for Leopard's phrasing dictionary. They need no Wine
+- Wine only as a fallback: for WinTalker, and for the Apple generations on an
+  x86_64 machine without the 32-bit runtime
 
-Those three run through Panthera's own i686 host, which maps the Mach-O engine
-directly, with no Wine and no emulation, and carries its own AAC decoder, so it
-needs neither Wine nor FFmpeg. `install.sh` does not build it; the optional
-downloader installs it from that project's pinned release.
+Those three run through Panthera's own host, which maps the Mach-O engine
+directly on x86_64 with no Wine and no emulation, and runs it through Box64 on
+aarch64. Both builds carry their own AAC decoder, so neither needs Wine or
+FFmpeg, and `install.sh` builds neither: the optional downloader installs the one
+for this machine from that project's pinned release.
 
 The included native binaries target a recent glibc-based Linux distribution.
 If the loader reports a missing `GLIBC` or `GLIBCXX` version, rebuild the
@@ -287,11 +289,13 @@ spd-say -w -o bestspeech "bestspeech is speaking"
 an engine missing its assets shows up there rather than only here, by ear.
 
 WinTalker requires a working x86_64 Wine installation. The Apple generations
-prefer the native i386 Linux host and use Wine only where the 32-bit runtime is
-missing. Neither route exists on ARM64 in this pack, where upstream's own
-aarch64 host is an open question rather than a promise. WinTalker's small
-x86_64 host can be rebuilt with `make -C native/wintalker` when `winegcc` is
-installed.
+prefer the native host and use Wine only where the 32-bit runtime is missing,
+which is x86_64 alone. On aarch64 the host runs the engine through Box64, and
+Tiger's formant voices come out; Leopard and Lion are left off there, because
+upstream's ARM64 build does not implement the CoreFoundation shim
+`_CFPropertyListCreateFromXMLData` and returns silence for them. WinTalker's
+small x86_64 host can be rebuilt with `make -C native/wintalker` when `winegcc`
+is installed.
 
 ## Raspberry Pi notes
 
@@ -305,6 +309,18 @@ QEMU aarch64; it has not yet been timed on physical Compute Module hardware.
 BeSTspeech, Centigram TruVoice, Microsoft Sam/Mike/Mary and the OneCore voices
 are built from source during installation, so those need a C compiler (`cc`)
 on ARM64 rather than a shipped binary.
+
+The Apple generations have an ARM64 host of their own, which the optional
+downloader installs. It runs Apple's i386 engine through Box64, linked into it,
+with the same Glint decoder, so there is no Wine and no translator to install,
+and it needs only the aarch64 runtime listed above. **Tiger speaks there, and
+Leopard and Lion are deliberately left off:** upstream's ARM64 build does not
+implement the CoreFoundation shim `_CFPropertyListCreateFromXMLData`, so those
+two come out silent, and a synthesizer that says nothing is worse than one that
+is not offered, because Speech Dispatcher falls back to eSpeak and the user
+hears the wrong voice. The installer renders a voice and requires samples
+before it enables a generation, so this shows up as a skip with a reason rather
+than as silence.
 
 ## Manual Speech Dispatcher setup
 
