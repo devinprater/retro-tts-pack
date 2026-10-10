@@ -189,10 +189,8 @@ import_addon_asset 'smoothtalker*.nvda-addon' 'synthDrivers\\_smoothtalker_engin
     import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_SPCH.DLL' "$ASSETS/monologue/FB_SPCH.DLL"
     import_addon_asset 'monologue*.nvda-addon' 'synthDrivers/_monologue_engine/bin/FB_TIMER.DLL' "$ASSETS/monologue/FB_TIMER.DLL"
     import_addon_asset 'doubletalkpc*.nvda-addon' 'synthDrivers/doubletalkpc/doubletalkpc.bin' "$ASSETS/doubletalkpc/doubletalkpc.bin"
-    import_addon_asset 'bestspeech*.nvda-addon' 'synthDrivers/b32_tts.dll' "$ASSETS/bestspeech/b32_tts.dll"
-    for language in eng dut fre ger gre heb ita jpn pol por rus spa; do
-        import_addon_asset 'bestspeech*.nvda-addon' "synthDrivers/dll_$language.dll" "$ASSETS/bestspeech/dll_$language.dll"
-    done
+    # BeSTspeech is the vendored openbst engine now: its tables are compiled in,
+    # so there is no b32_tts.dll and no dll_*.dll to import.
     import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/tibase32.dll' "$ASSETS/softvoice/tibase32.dll"
     import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/tieng32.dll' "$ASSETS/softvoice/tieng32.dll"
     import_addon_asset 'softvoice*.nvda-addon' 'synthDrivers/TISPAN32.DLL' "$ASSETS/softvoice/TISPAN32.DLL"
@@ -280,6 +278,7 @@ export RETRO_TTS_MSSAM_CLI="\$INSTALL_DIR/bin/sam_say"
 export RETRO_TTS_MSSAM_DATA="\$INSTALL_DIR/assets/mssam"
 export RETRO_TTS_ONECORE_CLI="\$INSTALL_DIR/bin/zira_say"
 export RETRO_TTS_ONECORE_DATA="\$INSTALL_DIR/assets/onecore"
+export RETRO_TTS_BESTSPEECH_CLI="\$INSTALL_DIR/bin/bst_cli"
 export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
 export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
 export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
@@ -341,6 +340,7 @@ build_native_engine() {
 build_native_engine "Centigram TruVoice" opentv tv_cli
 build_native_engine "Microsoft Sam, Mike and Mary" sam sam_say
 build_native_engine "Microsoft David, Zira and Mark" onecore zira_say
+build_native_engine "BeSTspeech / Keynote Gold" openbst bst_cli
 
 LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 LEOPARD_BACKEND=wine
@@ -368,9 +368,7 @@ Environment=RETRO_TTS_PROSE_HOST=$INSTALL_DIR/bin/ProseHost
 Environment=RETRO_TTS_PROSE_ROMS=$INSTALL_DIR/assets/prose2000
 Environment=RETRO_TTS_DTALK_CLI=$INSTALL_DIR/bin/dtalk_cli
 Environment=RETRO_TTS_DTALK_ROM=$INSTALL_DIR/assets/doubletalkpc/doubletalkpc.bin
-Environment=RETRO_TTS_BESTSPEECH_SHIM=$INSTALL_DIR/lib/libbst_shim.so
-Environment=RETRO_TTS_BESTSPEECH_LANGUAGE_SHIM=$INSTALL_DIR/lib/libbst_lang_shim.so
-Environment=RETRO_TTS_BESTSPEECH_DLL=$INSTALL_DIR/assets/bestspeech/b32_tts.dll
+Environment=RETRO_TTS_BESTSPEECH_CLI=$INSTALL_DIR/bin/bst_cli
 Environment=RETRO_TTS_SOFTVOICE_SHIM=$INSTALL_DIR/lib/libsv_shim.so
 Environment=RETRO_TTS_SOFTVOICE_BASE_DLL=$INSTALL_DIR/assets/softvoice/tibase32.dll
 Environment=RETRO_TTS_SOFTVOICE_LANGUAGE_DLL=$INSTALL_DIR/assets/softvoice/tieng32.dll
@@ -462,9 +460,14 @@ else missing_modules="$missing_modules prose2000"; fi
 if has_all "$ASSETS/doubletalkpc/doubletalkpc.bin"; then
     available_modules="$available_modules doubletalkpc"
 else missing_modules="$missing_modules doubletalkpc"; fi
-if has_all "$ASSETS/bestspeech/b32_tts.dll"; then
+# BeSTspeech is native openbst: no DLL and no shim, just the front end built
+# above, so like TruVoice it is available on any CPU the pack supports.
+if [ -x "$INSTALL_DIR/bin/bst_cli" ]; then
     available_modules="$available_modules bestspeech"
-else missing_modules="$missing_modules bestspeech"; fi
+else
+    missing_modules="$missing_modules bestspeech"
+    warn "bestspeech needs bin/bst_cli; install.sh builds it when a C compiler (cc) is available."
+fi
 if has_all "$ASSETS/softvoice/tibase32.dll" "$ASSETS/softvoice/tieng32.dll"; then
     available_modules="$available_modules softvoice"
 else missing_modules="$missing_modules softvoice"; fi

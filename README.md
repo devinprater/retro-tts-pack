@@ -45,7 +45,7 @@ Requirements:
 - x86_64 or ARM64 (aarch64) Linux
 - Python 3.10 or newer
 - a C compiler (`cc`) for the engines built from source at install time:
-  Centigram TruVoice, Microsoft Sam/Mike/Mary, and David/Zira/Mark
+  BeSTspeech, Centigram TruVoice, Microsoft Sam/Mike/Mary, and David/Zira/Mark
 - Speech Dispatcher with the `sd_generic` module
 - PipeWire's `pw-play` command
 - a working per-user systemd manager, recommended but not mandatory
@@ -77,8 +77,8 @@ nix run github:devinprater/retro-tts-pack#install
 or install it into your profile and run `retro-tts-pack-install`. The flake
 honours the same `install.sh` options, e.g. `--download-assets`.
 
-To download the checksum-pinned BeSTSpeech and Prose 2000 files published in
-their projects' GitHub releases:
+To download the checksum-pinned Prose 2000 files published in that project's
+GitHub release:
 
 ```sh
 ./install.sh --download-assets
@@ -99,9 +99,11 @@ The installer places the pack in
 `~/.local/share/retro-tts-pack`), installs `~/.local/bin/retro-tts`, writes
 per-user Speech Dispatcher modules, and enables `retro-tts.service`.
 
-SAM and ST Speech work immediately. `--download-assets` also enables
-BeSTSpeech and Prose 2000. Other engines require original, legally obtained
-files that are not included.
+SAM and ST Speech work immediately, as do the engines built from the vendored
+sources when a C compiler is present: BeSTspeech, Centigram TruVoice,
+Microsoft Sam/Mike/Mary, and David/Zira/Mark. `--download-assets` also fetches
+the Prose 2000 package. Other engines require original, legally obtained files
+that are not included.
 
 ### Run it as your own user, never with `sudo`
 
@@ -146,7 +148,7 @@ put them in the installed copy and run the installer again.
 | Monolog | `assets/monologue/FB_11K8.DLL`, `FB_22K16.DLL`, `FB_DEFLT.DIC`, `FB_NGN.EXE`, `FB_SPCH.DLL`, `FB_TIMER.DLL` |
 | Prose 2000 | `assets/prose2000/v3.4.1__2000__2.u22`, `v3.4.1__2000__3.u45`, `v3.4.1__2000__0.u21`, `v3.4.1__2000__1.u44`, `v3.12__8-9-88__dsp_prog.u29`, `v3.12__8-9-88__dsp_data.u29` |
 | DoubleTalk PC | `assets/doubletalkpc/doubletalkpc.bin` |
-| BeSTSpeech | `assets/bestspeech/b32_tts.dll`; the add-on's `dll_*.dll` files enable English, Dutch, French, German, Greek, Hebrew, Italian, Japanese, Polish, Portuguese, Russian, and Spanish |
+| BeSTSpeech | none: the engine is native openbst, built from source when `install.sh` runs, with its tables compiled in. Its 1995 build and the twelve 2006 language builds are offered; the six 1998 builds are not |
 | SoftVoice | `assets/softvoice/tibase32.dll`, `tieng32.dll`; `TISPAN32.DLL` enables Spanish |
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
 | EchoTalk | `assets/echotalk/textalker.ram.bin`, `textalker.obj.bin`, `textalker_v13.ram.bin`, and `textalker_v13.obj.bin` |
@@ -249,9 +251,9 @@ native emulators and Unicorn-backed engines well, although final Orca latency
 depends on cooling, storage, PipeWire configuration, and the desktop workload.
 The release is cross-compiled with Arm GNU Toolchain and smoke-tested under
 QEMU aarch64; it has not yet been timed on physical Compute Module hardware.
-Centigram TruVoice, Microsoft Sam/Mike/Mary and the OneCore voices are built
-from source during installation, so those three need a C compiler (`cc`) on
-ARM64 rather than a shipped binary.
+BeSTspeech, Centigram TruVoice, Microsoft Sam/Mike/Mary and the OneCore voices
+are built from source during installation, so those need a C compiler (`cc`)
+on ARM64 rather than a shipped binary.
 
 ## Manual Speech Dispatcher setup
 
@@ -287,7 +289,8 @@ why, is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 The pack contains open-source adapters, emulators, native compatibility shims,
 vendored C engines, and the Unicorn runtime. Corresponding license texts are
 under `licenses/`. Original synthesizer firmware, dictionaries, ROMs, devices,
-and engine DLLs are intentionally excluded. The one exception is the native
-OpenTV engine's constant tables, vendored with its sources under
-`native/opentv/generated/`: those bytes are Centigram's, not OpenTV's, and
-`licenses/opentv/NOTICE` is the notice that comes with them.
+and engine DLLs are intentionally excluded. Two exceptions are the constant
+tables of the native OpenTV engine, under `native/opentv/generated/`, and the
+tables of the native openbst engine, under `native/openbst/src/data/`. Those
+bytes are Centigram's and Berkeley Speech Technologies' respectively, not
+OpenTV's or openbst's, and the notices under `licenses/` say so.

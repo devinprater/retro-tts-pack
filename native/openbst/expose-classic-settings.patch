@@ -1,0 +1,32 @@
+--- a/src/speak.c
++++ b/src/speak.c
+@@ -183,6 +183,14 @@
+     if (!strcmp(name, "level")) return &h->level;
+     if (!strcmp(name, "voice")) return &h->voice;
+     if (!strcmp(name, "rate"))  return &h->rate;
++    /* The two settings the engine's own escapes carry and the five above do
++       not: the excitation a phrase opens on, which the ~e escape sets to its
++       value times sixteen, and the unvoiced-frame gain adjustment, which the
++       ~u escape sets to its value less eighteen. A host that cannot write an
++       escape into its text has no other way to reach them, and a voice preset
++       needs both to be reproducible. */
++    if (!strcmp(name, "exc"))      return &h->defexc;
++    if (!strcmp(name, "unvoiced")) return &h->gain_adj;
+     return NULL;
+ }
+ 
+--- a/include/bst.h
++++ b/include/bst.h
+@@ -48,8 +48,10 @@
+ /* Reads and writes one voice setting. The names are "pitch", the lowest
+    period the contour reaches; "top", the highest; "level", how much the
+    phrase rises and falls; "voice", which of the build's voices to speak in;
+-   and "rate", how fast. bst_set returns zero on an unknown name, bst_get
+-   returns zero for one. */
++   and "rate", how fast. Two more, "exc" and "unvoiced", carry the excitation a
++   phrase opens on and the unvoiced-frame gain adjustment, which the engine's
++   own text escapes set and nothing else reaches. bst_set returns zero on an
++   unknown name, bst_get returns zero for one. */
+ int bst_set(bst *h, const char *name, int value);
+ int bst_get(const bst *h, const char *name);
+ 

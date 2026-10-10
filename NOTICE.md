@@ -9,10 +9,12 @@ change the license of another component.
 
 Original commercial synthesizer DLLs, ROMs, firmware, dictionaries, Amiga
 devices, and related engine data are not part of this repository or its
-release archive. The one exception is the native OpenTV engine's constant
-tables, vendored with that project's sources under `native/opentv/generated/`;
-they are Centigram's, and `licenses/opentv/NOTICE` is the notice that comes
-with them. The optional downloader retrieves checksum-pinned packages
+release archive. The exceptions are the constant tables of the native OpenTV
+engine, under `native/opentv/generated/`, and of the native openbst engine,
+under `native/openbst/src/data/`. Those bytes are Centigram's and Berkeley
+Speech Technologies' respectively, and the notices under `licenses/opentv/`
+and `licenses/openbst/` say so. The optional downloader retrieves
+checksum-pinned packages
 from engine projects and their DECtalk.nu/datajake mirrors. Users remain
 responsible for complying with applicable upstream terms.
 
@@ -36,6 +38,10 @@ license in `licenses/`:
   <https://github.com/KamiKitsune420/ms-sam-mike-mary-decomp> (`licenses/mssam/`).
 - Microsoft David, Zira and Mark (OneCore) in portable C, by KamiKitsune420:
   <https://github.com/KamiKitsune420/ms-david-zira-decomp> (`licenses/onecore/`).
+- openbst, BeSTspeech / Keynote Gold in portable C, by Mudb0y:
+  <https://github.com/Mudb0y/openbst> (`licenses/openbst/`; its tables are
+  Berkeley Speech Technologies' and HumanWare's, as `native/openbst/README.md`
+  explains).
 
 Important upstream projects include:
 

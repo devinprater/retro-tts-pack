@@ -6,6 +6,11 @@
   runs, instead of running `TV_ENG32.DLL` under Unicorn. No DLL, no shim, and
   no x86_64-only binary, so TruVoice is available on aarch64 as well (issue
   #6). Its command line and ten-voice list are unchanged.
+- BeSTspeech is native openbst now, built from source when `install.sh` runs,
+  instead of running `b32_tts.dll` and the twelve `dll_*.dll` language modules
+  under Unicorn. No DLLs, no shims, no emulator, and nothing to import. The
+  voice list is unchanged, but the six 1998 builds are deliberately not
+  offered: they are known to have issues that no test covers.
 - Added Microsoft Sam, Mike and Mary (SAPI 5), built from the vendored
   `ms-sam-mike-mary-decomp` sources when `install.sh` runs.
 - Added Microsoft David, Zira and Mark (Windows OneCore), built from the

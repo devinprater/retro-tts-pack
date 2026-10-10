@@ -17,22 +17,6 @@ from pathlib import Path
 
 DOWNLOADS = (
     {
-        "name": "BeSTSpeech 2025.5 binary release",
-        "url": (
-            "https://github.com/samtupy/b32tts_wrapper/releases/download/"
-            "2025.5/b32_bin_2025.5.zip"
-        ),
-        "archive_sha256": (
-            "3658c82f4f861010b865196ab066d466ad3af9b07b7116a06d4da688b142b52f"
-        ),
-        "files": {
-            "b32_tts.dll": (
-                "bestspeech/b32_tts.dll",
-                "36e02d71c1c964662f1ae7689f0237fd5328f537d645e6ede3f4bcd1f316efcc",
-            ),
-        },
-    },
-    {
         "name": "Prose 2000 v1.1.0 NVDA add-on release",
         "url": (
             "https://github.com/OnjLouis/prose2000/releases/download/"
