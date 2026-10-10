@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Centigram TruVoice is native OpenTV now: built from source when `install.sh`
+  runs, instead of running `TV_ENG32.DLL` under Unicorn. No DLL, no shim, and
+  no x86_64-only binary, so TruVoice is available on aarch64 as well (issue
+  #6). Its command line and ten-voice list are unchanged.
+- Added Microsoft Sam, Mike and Mary (SAPI 5), built from the vendored
+  `ms-sam-mike-mary-decomp` sources when `install.sh` runs.
+- Added Microsoft David, Zira and Mark (Windows OneCore), built from the
+  vendored `ms-david-zira-decomp` sources when `install.sh` runs. `zira_say`
+  exposes no pitch control, so these three ignore the pitch setting.
+- Vendored all three engines' C sources under `native/`, with their MIT
+  licenses under `licenses/opentv/`, `licenses/mssam/` and `licenses/onecore/`.
 - Added a `flake.nix` for NixOS (x86_64-linux): it patches the prebuilt
   binaries for the Nix store and runs the normal installer via
   `nix run github:devinprater/retro-tts-pack#install` (or the

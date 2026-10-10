@@ -84,6 +84,16 @@ def _render(
         wav = truevoice_to_wav(
             text, rate=rate, pitch=pitch, volume=volume, voice=voice,
         )
+    elif engine == "mssam":
+        from .engines.mssam import text_to_wav as mssam_to_wav
+        wav = mssam_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
+    elif engine == "onecore":
+        from .engines.onecore import text_to_wav as onecore_to_wav
+        wav = onecore_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
     elif engine == "wintalker":
         from .engines.wintalker import text_to_wav as wintalker_to_wav
         wav = wintalker_to_wav(text, rate=rate, pitch=pitch, voice=voice)
@@ -192,6 +202,7 @@ def build_parser() -> argparse.ArgumentParser:
             "doubletalkpc",
             "bestspeech", "softvoice",
             "lhtts", "truevoice",
+            "mssam", "onecore",
             "amiganarrator",
             "wintalker",
             "echotalk", "outspoken",

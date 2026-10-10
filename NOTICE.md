@@ -9,7 +9,10 @@ change the license of another component.
 
 Original commercial synthesizer DLLs, ROMs, firmware, dictionaries, Amiga
 devices, and related engine data are not part of this repository or its
-release archive. The optional downloader retrieves checksum-pinned packages
+release archive. The one exception is the native OpenTV engine's constant
+tables, vendored with that project's sources under `native/opentv/generated/`;
+they are Centigram's, and `licenses/opentv/NOTICE` is the notice that comes
+with them. The optional downloader retrieves checksum-pinned packages
 from engine projects and their DECtalk.nu/datajake mirrors. Users remain
 responsible for complying with applicable upstream terms.
 
@@ -22,6 +25,17 @@ The optional downloader can install separately published Tiger, Leopard, and
 Lion Mac OS X engines, SpeechDictionary frameworks, and voices from
 DECtalk.nu's Apple directory, but they are not redistributed in release
 archives.
+
+Native engine sources are vendored under `native/`, each under its own MIT
+license in `licenses/`:
+
+- OpenTV, Centigram TruVoice rebuilt in portable C, by RetroBunn:
+  <https://github.com/RetroBunn/tv-decomp> (`licenses/opentv/`; its tables
+  are Centigram's, as that folder's NOTICE explains).
+- Microsoft Sam, Mike and Mary in portable C, by KamiKitsune420:
+  <https://github.com/KamiKitsune420/ms-sam-mike-mary-decomp> (`licenses/mssam/`).
+- Microsoft David, Zira and Mark (OneCore) in portable C, by KamiKitsune420:
+  <https://github.com/KamiKitsune420/ms-david-zira-decomp> (`licenses/onecore/`).
 
 Important upstream projects include:
 

@@ -8,7 +8,9 @@ assets/**/*
 !assets/**/.keep
 !assets/lhtts/
 !assets/lhtts/.keep
-!assets/truevoice/
-!assets/truevoice/.keep
+!assets/mssam/
+!assets/mssam/.keep
+!assets/onecore/
+!assets/onecore/.keep
 !assets/monologue/argclean.json
 !assets/monologue/ds_sensitive.json

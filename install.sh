@@ -206,23 +206,36 @@ import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker.ram.b
 import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.obj.bin' "$ASSETS/echotalk/textalker_v13.obj.bin"
 import_addon_asset 'echotalk*.nvda-addon' 'synthDrivers/echotalk/textalker_v13.ram.bin' "$ASSETS/echotalk/textalker_v13.ram.bin"
 
-# Centigram TruVoice 5.10 Build 16 is preferred.  The Microsoft installer's
-# Build 15 payload is accepted as a fallback and normalized to the runtime
-# filename expected by the adapter.
-import_zip_asset 'cgrm_spk-win32.zip' 'cgrm_spk-win32/TV_ENG32.DLL' "$ASSETS/truevoice/TV_ENG32.DLL"
-if [ ! -f "$ASSETS/truevoice/TV_ENG32.DLL" ]; then
-    truevoice_installer=$(find_addon 'TruVoice_new.exe') || truevoice_installer=
-    if [ -n "$truevoice_installer" ] && command -v 7z >/dev/null 2>&1; then
-        truevoice_work=$(mktemp -d "${TMPDIR:-/tmp}/retro-tts-truevoice.XXXXXX")
-        if 7z e -y -o"$truevoice_work" "$truevoice_installer" 'TV_EN32P.DLL' >/dev/null 2>&1 &&
-           [ -f "$truevoice_work/TV_EN32P.DLL" ]; then
-            mkdir -p "$ASSETS/truevoice"
-            cp "$truevoice_work/TV_EN32P.DLL" "$ASSETS/truevoice/TV_ENG32.DLL"
-            say "Imported TV_ENG32.DLL from $(basename "$truevoice_installer")."
-        fi
-        rm -rf "$truevoice_work"
-    fi
-fi
+# TruVoice is native OpenTV now and takes no DLL: its constant tables are
+# compiled into the front end that install.sh builds above.
+#
+# Sam, Mike, Mary and the OneCore voices read their own data files at run time.
+# Keep them anywhere up to three levels above this source tree and they are
+# imported by name; README.md lists them.
+import_named_asset() {
+    named_asset=$1
+    named_destination=$2
+    [ -f "$named_destination" ] && return 0
+    named_source=$(find_addon "$named_asset") || return 0
+    mkdir -p "$(dirname "$named_destination")"
+    cp "$named_source" "$named_destination"
+    say "Imported $named_asset."
+}
+import_named_asset 'Sam.spd'  "$ASSETS/mssam/Sam.spd"
+import_named_asset 'Sam.sdf'  "$ASSETS/mssam/Sam.sdf"
+import_named_asset 'Mike.spd' "$ASSETS/mssam/Mike.spd"
+import_named_asset 'Mike.sdf' "$ASSETS/mssam/Mike.sdf"
+import_named_asset 'Mary.spd' "$ASSETS/mssam/Mary.spd"
+import_named_asset 'Mary.sdf' "$ASSETS/mssam/Mary.sdf"
+import_named_asset 'LTTS1033.LXA' "$ASSETS/mssam/LTTS1033.LXA"
+import_named_asset 'r1033tts.LXA' "$ASSETS/mssam/r1033tts.LXA"
+import_named_asset 'MSTTSLocEnUS.dat' "$ASSETS/onecore/MSTTSLocEnUS.dat"
+for onecore_part in APM BEP INI; do
+    for onecore_voice in David Zira Mark; do
+        import_named_asset "M1033$onecore_voice.$onecore_part" \
+            "$ASSETS/onecore/M1033$onecore_voice.$onecore_part"
+    done
+done
 
 # The L&H TTS3000 packages are Microsoft CAB self-extractors.  Flattening the
 # DLLs is intentional: the native shim resolves every plugin by basename.
@@ -262,9 +275,11 @@ export RETRO_TTS_SOFTVOICE_LANGUAGE_DLL="\$INSTALL_DIR/assets/softvoice/tieng32.
 export RETRO_TTS_SOFTVOICE_SPANISH_DLL="\$INSTALL_DIR/assets/softvoice/TISPAN32.DLL"
 export RETRO_TTS_LHTTS_SHIM="\$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"
 export RETRO_TTS_LHTTS_DATA="\$INSTALL_DIR/assets/lhtts"
-export RETRO_TTS_TRUEVOICE_SHIM="\$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"
-export RETRO_TTS_TRUEVOICE_DATA="\$INSTALL_DIR/assets/truevoice"
-export RETRO_TTS_TRUEVOICE_CLI="\$INSTALL_DIR/bin/cgrm_spk"
+export RETRO_TTS_TRUEVOICE_CLI="\$INSTALL_DIR/bin/tv_cli"
+export RETRO_TTS_MSSAM_CLI="\$INSTALL_DIR/bin/sam_say"
+export RETRO_TTS_MSSAM_DATA="\$INSTALL_DIR/assets/mssam"
+export RETRO_TTS_ONECORE_CLI="\$INSTALL_DIR/bin/zira_say"
+export RETRO_TTS_ONECORE_DATA="\$INSTALL_DIR/assets/onecore"
 export RETRO_TTS_ECHOTALK_LIB="\$INSTALL_DIR/lib/libechotalk.$architecture.so"
 export RETRO_TTS_ECHOTALK_DATA="\$INSTALL_DIR/assets/echotalk"
 export RETRO_TTS_OUTSPOKEN_HOST="\$INSTALL_DIR/lib/libosp_host.$architecture.so"
@@ -290,6 +305,42 @@ else
     rm -f "$CLIENT_BINARY.tmp"
     warn "using the Python Speech Dispatcher client (install a C compiler and pw-play for lower onset latency)"
 fi
+
+# The three engines added with the vendored native sources are compiled here,
+# at install time, from native/.  That is deliberate and it is the whole point
+# of doing it this way: there is no per-architecture binary to ship for them,
+# only C, so unlike the shimmed engines they run on ARM64 as well as x86_64.
+build_native_engine() {
+    engine_name=$1
+    engine_script=$2
+    engine_binary=$3
+    if [ ! -f "$ROOT/native/$engine_script/build.sh" ]; then
+        [ -x "$INSTALL_DIR/bin/$engine_binary" ] ||
+            warn "$engine_name: native/$engine_script/build.sh is missing; bin/$engine_binary was not built"
+        return 0
+    fi
+    if ! command -v cc >/dev/null 2>&1; then
+        [ -x "$INSTALL_DIR/bin/$engine_binary" ] ||
+            warn "$engine_name needs a C compiler (cc); bin/$engine_binary was not built"
+        return 0
+    fi
+    native_work=$(mktemp -d "${TMPDIR:-/tmp}/retro-tts-build.XXXXXX")
+    if OUT="$native_work" CC=cc sh "$ROOT/native/$engine_script/build.sh" \
+         >/dev/null 2>"$native_work/build.log" &&
+       [ -x "$native_work/$engine_binary" ]; then
+        mkdir -p "$INSTALL_DIR/bin"
+        cp "$native_work/$engine_binary" "$INSTALL_DIR/bin/$engine_binary.tmp"
+        mv -f "$INSTALL_DIR/bin/$engine_binary.tmp" "$INSTALL_DIR/bin/$engine_binary"
+        chmod 755 "$INSTALL_DIR/bin/$engine_binary"
+        say "Built $engine_name from source."
+    else
+        warn "could not build $engine_name; see $native_work/build.log"
+    fi
+    rm -rf "$native_work"
+}
+build_native_engine "Centigram TruVoice" opentv tv_cli
+build_native_engine "Microsoft Sam, Mike and Mary" sam sam_say
+build_native_engine "Microsoft David, Zira and Mark" onecore zira_say
 
 LEOPARD_HOST="$INSTALL_DIR/bin/leopard_host.exe"
 LEOPARD_BACKEND=wine
@@ -326,9 +377,11 @@ Environment=RETRO_TTS_SOFTVOICE_LANGUAGE_DLL=$INSTALL_DIR/assets/softvoice/tieng
 Environment=RETRO_TTS_SOFTVOICE_SPANISH_DLL=$INSTALL_DIR/assets/softvoice/TISPAN32.DLL
 Environment=RETRO_TTS_LHTTS_SHIM=$INSTALL_DIR/lib/liblhtts_shim.$architecture.so
 Environment=RETRO_TTS_LHTTS_DATA=$INSTALL_DIR/assets/lhtts
-Environment=RETRO_TTS_TRUEVOICE_SHIM=$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so
-Environment=RETRO_TTS_TRUEVOICE_DATA=$INSTALL_DIR/assets/truevoice
-Environment=RETRO_TTS_TRUEVOICE_CLI=$INSTALL_DIR/bin/cgrm_spk
+Environment=RETRO_TTS_TRUEVOICE_CLI=$INSTALL_DIR/bin/tv_cli
+Environment=RETRO_TTS_MSSAM_CLI=$INSTALL_DIR/bin/sam_say
+Environment=RETRO_TTS_MSSAM_DATA=$INSTALL_DIR/assets/mssam
+Environment=RETRO_TTS_ONECORE_CLI=$INSTALL_DIR/bin/zira_say
+Environment=RETRO_TTS_ONECORE_DATA=$INSTALL_DIR/assets/onecore
 Environment=RETRO_TTS_ECHOTALK_LIB=$INSTALL_DIR/lib/libechotalk.$architecture.so
 Environment=RETRO_TTS_ECHOTALK_DATA=$INSTALL_DIR/assets/echotalk
 Environment=RETRO_TTS_OUTSPOKEN_HOST=$INSTALL_DIR/lib/libosp_host.$architecture.so
@@ -415,14 +468,16 @@ else missing_modules="$missing_modules bestspeech"; fi
 if has_all "$ASSETS/softvoice/tibase32.dll" "$ASSETS/softvoice/tieng32.dll"; then
     available_modules="$available_modules softvoice"
 else missing_modules="$missing_modules softvoice"; fi
-# ⛔ LHTTS AND TRUVOICE SHIM AN ARCH-SPECIFIC NATIVE LIBRARY, AND ONLY x86_64 IS
-# BUILT. install.sh used to fold that into one "missing proprietary assets"
-# bucket, which sent users of a Pi 4 hunting for DLLs they already had. The two
-# causes are genuinely different and are now reported differently:
+# ⛔ LHTTS SHIMS AN ARCH-SPECIFIC NATIVE LIBRARY, AND ONLY x86_64 IS BUILT.
+# install.sh used to fold that into one "missing proprietary assets" bucket,
+# which sent users of a Pi 4 hunting for DLLs they already had. The two causes
+# are genuinely different and are now reported differently:
 #   * the DLL assets are absent  -> an assets problem, fixable by the user
 #   * the shim for this CPU is absent -> a PACKAGING gap, not fixable by the user
 # See issue #4: on aarch64 the module can never be enabled however the assets are
 # placed, because lib/liblhtts_shim.aarch64.so is not shipped at all.
+# TruVoice was in this bucket too.  It is not any more: it is compiled from
+# source at install time, so it runs on any CPU this pack supports (issue #6).
 LHTTS_SHIM="$INSTALL_DIR/lib/liblhtts_shim.$architecture.so"
 if has_all \
     "$ASSETS/lhtts/TTSMGR32.DLL" \
@@ -436,16 +491,38 @@ elif [ ! -f "$LHTTS_SHIM" ]; then
     unsupported_modules="$unsupported_modules lhtts"
     warn "lhtts cannot run on $architecture: $LHTTS_SHIM is not shipped (only x86_64 is built). The DLLs are irrelevant on this CPU."
 else missing_modules="$missing_modules lhtts"; fi
-TRUEVOICE_SHIM="$INSTALL_DIR/lib/libtruevoice_shim.$architecture.so"
-if has_all \
-    "$ASSETS/truevoice/TV_ENG32.DLL" \
-    "$TRUEVOICE_SHIM" \
-    "$INSTALL_DIR/bin/cgrm_spk"; then
+# TruVoice is native OpenTV: no DLL, no shim, just the front end built above,
+# so it is available on any CPU the pack supports (this is issue #6).
+if [ -x "$INSTALL_DIR/bin/tv_cli" ]; then
     available_modules="$available_modules truevoice"
-elif [ ! -f "$TRUEVOICE_SHIM" ]; then
-    unsupported_modules="$unsupported_modules truevoice"
-    warn "truevoice cannot run on $architecture: $TRUEVOICE_SHIM is not shipped (only x86_64 is built)."
-else missing_modules="$missing_modules truevoice"; fi
+else
+    missing_modules="$missing_modules truevoice"
+    warn "truevoice needs bin/tv_cli; install.sh builds it when a C compiler (cc) is available."
+fi
+# Sam, Mike, Mary and the OneCore voices need both their data and the binary
+# built from the vendored sources.
+if [ ! -x "$INSTALL_DIR/bin/sam_say" ]; then
+    warn "mssam needs bin/sam_say; install.sh builds it when a C compiler (cc) is available."
+fi
+if has_all \
+    "$ASSETS/mssam/Sam.spd" "$ASSETS/mssam/Sam.sdf" \
+    "$ASSETS/mssam/Mike.spd" "$ASSETS/mssam/Mike.sdf" \
+    "$ASSETS/mssam/Mary.spd" "$ASSETS/mssam/Mary.sdf" \
+    "$ASSETS/mssam/LTTS1033.LXA" "$ASSETS/mssam/r1033tts.LXA" \
+    "$INSTALL_DIR/bin/sam_say"; then
+    available_modules="$available_modules mssam"
+else missing_modules="$missing_modules mssam"; fi
+if [ ! -x "$INSTALL_DIR/bin/zira_say" ]; then
+    warn "onecore needs bin/zira_say; install.sh builds it when a C compiler (cc) is available."
+fi
+if has_all \
+    "$ASSETS/onecore/MSTTSLocEnUS.dat" \
+    "$ASSETS/onecore/M1033David.APM" "$ASSETS/onecore/M1033David.BEP" "$ASSETS/onecore/M1033David.INI" \
+    "$ASSETS/onecore/M1033Zira.APM" "$ASSETS/onecore/M1033Zira.BEP" "$ASSETS/onecore/M1033Zira.INI" \
+    "$ASSETS/onecore/M1033Mark.APM" "$ASSETS/onecore/M1033Mark.BEP" "$ASSETS/onecore/M1033Mark.INI" \
+    "$INSTALL_DIR/bin/zira_say"; then
+    available_modules="$available_modules onecore"
+else missing_modules="$missing_modules onecore"; fi
 if has_all "$ASSETS/amiganarrator/narrator.device" &&
    { [ -f "$ASSETS/amiganarrator/translator.library" ] ||
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then

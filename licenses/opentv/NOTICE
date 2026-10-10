@@ -1,0 +1,349 @@
+OpenTV — notice on the engine data
+==================================
+
+The code in this repository is OpenTV's own work and is MIT licensed; see
+LICENSE.
+
+The data under `data/` is not.
+
+What it is
+----------
+
+`lang/enu/data/engine.tvdata` holds the constant tables the American English
+TruVoice engine reads: its letter-to-sound rules, its exception dictionary
+and suffix tables, the phoneme inventory and the per-phoneme formant,
+duration and amplitude tables, the prosody and duration-by-rate tables, and
+the parameters that define the ten voices. About 760 KB of it.
+
+It is lifted byte for byte out of Centigram's CGRM_EN.DLL by
+`tools/extract_data.py`, because the engine's arithmetic depends on the
+exact values — the decompilation is verified by producing audio identical to
+the original's down to the sample, and that is only meaningful against the
+original's own numbers. The tables carry their symbol names from this
+project's analysis, but the bytes are Centigram's.
+
+No code is taken. The `.text` section is not copied, apart from fifty-one
+jump tables the compiler left sitting between functions, each cut to the
+size a C declaration in `src/` gives it. The engine's logic in `src/` is
+written from analysis, not lifted.
+
+Whose work it is
+----------------
+
+The data is the work of Centigram Communications Corporation, whose
+copyright notice the binaries carry as "Copyright (c) 1991-1997 Centigram
+Communications Corp."
+
+Where the rights sit now has not been established by this project, and the
+trail is not short. What is on the public record:
+
+* June 1997 -- Centigram sold the TruVoice text-to-speech technology and
+  business to Lernout & Hauspie Speech Products of Belgium, months before
+  the October 1997 build this project works from was even linked.
+* October 2001 -- Lernout & Hauspie went bankrupt after the accounting
+  fraud uncovered in 2000, and ScanSoft bought the bulk of its assets at
+  auction, the text-to-speech and speech-recognition engines among them.
+* 2005 -- ScanSoft acquired Nuance Communications and took its name.
+
+Nuance's own later history is not traced here.
+
+The MIT licence does not cover the contents of `data/`, and OpenTV is in no
+position to license them to anyone. They are included so that the engine
+can be built and studied without hunting down a 1997 DLL, and for no other
+reason.
+
+If you hold these rights and would rather the data were not distributed
+here, please open an issue on the repository and it will be removed.
+
+Read from DECtalk
+-----------------
+
+How a sung note moves in `src/engine/frame.c` follows DECtalk's model rather
+than one invented here, because the score syntax this engine's demo songs are
+written in is DECtalk's and so, in all likelihood, was the behaviour the
+product expected. What was taken is the shape of it:
+
+  - a note is approached linearly over 100 ms rather than jumped to
+  - it wavers at 6.25 Hz by plus and minus 2.05 Hz, as a free-running cosine
+  - a pitch written as a frequency rather than a note travels over the whole
+    phoneme instead, and does not waver
+  - the speech flutter is switched off while singing
+
+No DECtalk code is in this repository and none was copied; the two
+implementations do not resemble each other. Its note table was worked through
+as a check on ours rather than adopted -- it agrees with equal temperament to
+1.5 cents -- and ours is computed, not tabulated. See docs/SINGING.md.
+
+The checkout read was:
+
+    https://github.com/dectalk/dectalk
+
+whose own README states that the files were shared by their original
+developer, the late Edward Bruckert, on the DECtalk mailing list in 2015 and
+have been publicly preserved since. Individual files in it carry headers
+asserting that they embody confidential technology of FONIX Corporation. The
+two accounts disagree; the checkout is kept out of this repository by
+`.gitignore` either way, and nothing here is derived from its text.
+
+If you hold rights in DECtalk and would rather this behaviour were not
+modelled here, please open an issue on the repository and it will be removed.
+
+Borrowed from TGSpeechBox
+-------------------------
+
+The rate-adaptive bandwidth widening in `src/engine/frame.c` -- the idea
+that formant bandwidths should widen as the speech rate climbs, so a
+resonator settles inside a shortened phoneme instead of ringing on into the
+next one -- is taken from TGSpeechBox by Tamas Geczy, along with its
+threshold and 1.3x widening factor:
+
+    https://github.com/tgeczy/TGSpeechBox
+
+TGSpeechBox is MIT licensed:
+
+    Copyright (c) 2014 NV Access Limited
+    Copyright (c) 2025-2026 Tamas Geczy
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+No TGSpeechBox code is copied here.  It is a C++ engine with a different
+frame model; what crossed over is the technique and the constants, written
+against TruVoice's own resonator tables.  TGSpeechBox is itself a fork of
+NV Access's NV Speech Player, which is why NV Access holds the earlier
+copyright above.
+
+Borrowed from Panthera Speech
+-----------------------------
+
+Two things the SAPI 5 server in `sapi5/` does were learned from Panthera
+Speech by Tamas Geczy, which presents the Apple voices of Tiger through Lion
+to SAPI and NVDA:
+
+    https://github.com/tgeczy/panthera-speech
+
+The first is that a bookmark fragment's text is the bookmark's *name* rather
+than words to speak, and that JAWS sends every word as its own fragment with
+a bookmark between each pair -- so an engine that appends fragment text
+blindly reads the bookmark names aloud, and one that drops them without
+restoring a space runs the neighbouring words together.  The second is that
+NVDA's SAPI driver interleaves bookmarks with the text and waits for the
+events before advancing, so an engine that never posts them stalls.  Neither
+is in any specification; both are in Panthera's source as comments earned
+against real clients.
+
+Panthera Speech is MIT licensed:
+
+    Copyright (c) 2026 Tamas Geczy
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the
+    "Software"), to deal in the Software without restriction, including
+    without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to
+    permit persons to whom the Software is furnished to do so, subject to
+    the following conditions:
+
+    The above copyright notice and this permission notice shall be included
+    in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+    SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+No Panthera code is copied here.  Panthera's adapter is C++ over a pipe to an
+emulated Apple engine; `sapi5/tvsapi.c` is C over this project's own library,
+and the two have no line in common.  What crossed over is the two findings
+above and the confidence that the shape is right.
+
+The voices named Frank and Francisco
+-----------------------------------
+
+`src/engine/voices.c` defines a deep male voice called Frank, and its
+description comes from MindMaker's TextAssist build of this engine.  Those files were
+supplied to read and are not redistributed here -- `.gitignore` keeps them out.
+`lang/spa/engine/voices.c` defines `Francisco`, which is the same three carried-over
+parameters on the 1995 Spanish engine, based on its Pedro as Frank is based on
+Peter; everything in this section applies to him equally.  The name is this
+project's, chosen so that the voice carries a Spanish name among Spanish ones.
+
+TextAssist put a voice layer of its own over the engine and shipped each voice
+as a plain-text file of Klatt-style parameters.  `Frank.tav` is twenty-three of
+them, and against Bill -- that product's name for voice 0, which is Centigram's
+Peter -- eleven differ.  Three of the eleven are carried over, because they are
+the three this engine has somewhere to put: `F0Def` 72 rather than 100,
+`HeadSize` 1.1 rather than 1.0, and `IntonLevel` 0.7 rather than 1.0.  The
+other eight are two shelf filters, a source richness, a noise rate and a sung
+pitch rate, all of which shape the spectrum in that product's own synthesiser,
+and none of them is reproduced.
+
+`Frank.tav` also carries a 225-point array of glottal pulse samples that
+`Bill.tav` does not.  That is data out of the product rather than a description
+of it, so it is **not** reproduced here and no part of it appears in this
+repository; this engine keeps its own single pulse table.
+
+The product's help screen names its six voice sliders, which identifies two more
+of the eleven: `Breath` is Breathiness and `Larynx` is Creakiness.  Frank reads
+Breathiness 10 and Creakiness 0, so he is given breathiness -- as aspiration
+held under the voice, which is this project's own mechanism, not the product's
+-- and no creak at all.  Nothing else of the product
+is used, and there was nothing else to take: its engine DLL carries Centigram's
+ten-voice table byte-identical to CGRM_EN.DLL's, so the eight voices it
+advertises are built above the engine rather than inside it.
+
+What its version resources say, rather than what is remembered about it:
+
+    TAEngine.dll, TTSVoice.dll    Copyright Mindmaker, Inc. 1999
+    Clapi.dll                     L&H Copyright, "L&H English clapi"
+
+So the engine in that product is an L&H build of the same synthesiser, as
+SPMtv160.dll is -- see docs/SPANISH.md -- and the suite around it is
+MindMaker's.
+
+If you hold rights in that product and would rather the voices were not
+described here, please open an issue on the repository and they will be removed.
+
+Japanese: naist-jdic and Open JTalk
+-----------------------------------
+
+`lang/jpn/data/jadic.bin` is compiled from **naist-jdic**, the morphological
+dictionary distributed with Open JTalk, release 1.11 of December 2018.
+`lang/jpn/data/jadic.provenance.txt` records the source folder, the release and a
+SHA-256 for each input file. It carries, for each of 486,757
+entries, the surface, the reading as said and the reading as written, the
+accent type, the mora count and the accent chain rule, plus the 1377x1377
+connection cost matrix the analyser needs. Without it the Japanese front end
+cannot read kanji and has no accent to speak with.
+
+It is **redistributed** in the NVDA add-on and the SAPI 5 installer, which put
+it beside the library, because that is the only way Japanese reads kanji on an
+installed copy. naist-jdic's licence below permits redistribution in binary
+form with the notice retained, which is why this file travels with it.
+
+    Copyright (c) 2009, Nara Institute of Science and Technology, Japan.
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+    Redistributions of source code must retain the above copyright notice,
+    this list of conditions and the following disclaimer.
+    Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+    Neither the name of the Nara Institute of Science and Technology
+    (NAIST) nor the names of its contributors may be used to endorse or
+    promote products derived from this software without specific prior
+    written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The front end's stages follow **Open JTalk**, which breaks its text analysis
+into separate modules whose rules are explicit tests on morphological
+category -- `njd_set_accent_phrase` is eighteen numbered rules over
+noun/verb/adjective/particle/suffix and nothing else. Those rules were read
+as a specification and written out again in `build/Japanese_test/jp_njd.py`
+and `lang/jpn/port/`; no Open JTalk code is copied into this repository.
+
+    Copyright (c) 2008-2015  Nagoya Institute of Technology
+                             Department of Computer Science
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are
+    met:
+
+    - Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    - Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+    - Neither the name of the HTS working group nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+    A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Neither project's synthesiser is used or referenced. Open JTalk synthesises
+with an HMM; OpenTV is a formant synthesiser and the two have nothing in
+common below the text analysis. `open_jtalk-1.11/` is a reference checkout
+and is not committed -- `tools/gen_ja_dict.py` and `tools/gen_ja_rules.py`
+are how `lang/jpn/data/jadic.bin` and the rule tables were produced from it, and
+they are kept in the tree so that anyone with the checkout can confirm that
+what is committed here is what comes out of it.
+
+The original binaries
+---------------------
+
+No Centigram binary is in this repository, and none is needed to build or
+run OpenTV.
+
+A copy is needed for one thing only: `tools/difftest.py`, which runs the
+corpus through the original DLL and through OpenTV and requires the audio to
+be identical. That comparison is the evidence the decompilation is correct.
+Without a copy the test reports that it has nothing to compare against and
+everything else still works.
+
+`tools/extract_data.py` is how `data/` was produced, and is kept in the tree
+so that anyone with the original can check that what is committed here is
+what comes out of it.
+
+Other systems read as references
+--------------------------------
+
+Three shipping Japanese text-to-speech systems were inspected locally, from
+licensed installations, to answer one design question: whether a Japanese
+system reads an English word by looking it up or by rule. They are Microsoft's
+OneCore Japanese voices, Lernout & Hauspie's TTS3000, and IBM/Eloquence
+ViaVoice. `lang/jpn/research/open_questions.md` section 4.3 records what was observed --
+file sizes, the shape of the data, and a module's exported function names.
+
+**Nothing in this repository is derived from any of them.** No code was
+disassembled, nothing was executed, and no rule table, lexicon or other data
+was taken. What was learned is architectural: that all three pronounce
+words beyond a fixed list, and that L&H exposed one G2P interface per language
+with a user-dictionary hook. How any of them divides the work between rules
+and lexical data is not something an outside inspection settles, and this
+makes no claim about it. Those are observations about a design, and the design
+is not what is being reproduced here.

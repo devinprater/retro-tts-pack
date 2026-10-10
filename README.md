@@ -2,8 +2,8 @@
 
 Project repository: <https://github.com/devinprater/retro-tts-pack>
 
-This Linux pack provides seventeen retro speech synthesizer adapters on x86_64
-and eleven on ARM64 (aarch64):
+This Linux pack provides nineteen retro speech synthesizer adapters on x86_64
+and fourteen on ARM64 (aarch64):
 
 - SAM
 - Atari ST Speech
@@ -17,7 +17,9 @@ and eleven on ARM64 (aarch64):
 - WinTalker / MacInTalk
 - EchoTalk / Echo II Textalker 1.3 and 3.1.3
 - OutSpoken: MacinTalk 1, 2, 3, and Pro
-- Centigram TruVoice 5.10 (x86_64)
+- Centigram TruVoice 5.10
+- Microsoft Sam, Mike and Mary (SAPI 5)
+- Microsoft David, Zira and Mark (Windows OneCore)
 - L&H TTS3000 6.x (x86_64)
 - Panthera Speech generations: Tiger 10.4, Leopard 10.5, and Lion 10.7
   MacinTalk (including Vicki and Alex)
@@ -42,6 +44,8 @@ Requirements:
 
 - x86_64 or ARM64 (aarch64) Linux
 - Python 3.10 or newer
+- a C compiler (`cc`) for the engines built from source at install time:
+  Centigram TruVoice, Microsoft Sam/Mike/Mary, and David/Zira/Mark
 - Speech Dispatcher with the `sd_generic` module
 - PipeWire's `pw-play` command
 - a working per-user systemd manager, recommended but not mandatory
@@ -83,7 +87,7 @@ their projects' GitHub releases:
 An interactive installation also offers this choice. Noninteractive
 installations do not download proprietary assets unless the option is given.
 The opt-in downloader also retrieves checksum-pinned SmoothTalker, Monologue,
-DoubleTalk PC, WinTalker, SoftVoice, Amiga Narrator, Centigram TruVoice, and
+DoubleTalk PC, WinTalker, SoftVoice, Amiga Narrator, and
 all L&H TTS3000 language packages from DECtalk.nu, retaining
 datajake as a fallback for packages mirrored identically there. DECtalk.nu also
 provides the checksum-pinned Tiger and Leopard trees, EchoTalk Textalker images,
@@ -147,7 +151,9 @@ put them in the installed copy and run the installer again.
 | Amiga Narrator | `assets/amiganarrator/narrator.device` and either `translator.library` or `cmudict.txt` |
 | EchoTalk | `assets/echotalk/textalker.ram.bin`, `textalker.obj.bin`, `textalker_v13.ram.bin`, and `textalker_v13.obj.bin` |
 | OutSpoken | `assets/outspoken/outspoken-roms`; individual MacinTalk 1, 2, 3, or Pro generations are discovered from its subdirectories |
-| Centigram TruVoice (x86_64 only) | `assets/truevoice/TV_ENG32.DLL`; the installer imports it from `cgrm_spk-win32.zip` or `TruVoice_new.exe` when either is kept near the source tree |
+| Centigram TruVoice | none: the engine is native OpenTV, built from source when `install.sh` runs, with its tables compiled in |
+| Microsoft Sam, Mike and Mary | `assets/mssam/Sam.spd`, `Sam.sdf`, `Mike.spd`, `Mike.sdf`, `Mary.spd`, `Mary.sdf`, `LTTS1033.LXA`, and `r1033tts.LXA`; the installer imports them by name from anywhere near the source tree |
+| Microsoft David, Zira and Mark | `assets/onecore/MSTTSLocEnUS.dat`, and `M1033David.{APM,BEP,INI}`, `M1033Zira.{APM,BEP,INI}`, `M1033Mark.{APM,BEP,INI}` |
 | L&H TTS3000 (x86_64 only) | the DLLs extracted from the supplied `lhtts*.exe` language installers; the installer extracts these automatically with 7-Zip or `cabextract` |
 | WinTalker (x86_64 only) | `assets/wintalker/WinTalker.dll`, `English.lex`, and Wine installed on the host |
 | Tiger Speech (x86_64 only) | `assets/tigerspeech/tigerspeech-data/Speech/Voices`; Wine is required by this pack |
@@ -208,6 +214,8 @@ spd-say -w -o tigerspeech "Vicki is working."
 spd-say -w -o echotalk "Textalker is working."
 spd-say -w -o outspoken "The original MacinTalk is working."
 spd-say -w -o truevoice "Centigram TrueVoice is working."
+spd-say -w -o mssam "Microsoft Sam is working."
+spd-say -w -o onecore "Microsoft David is working."
 spd-say -w -o lhtts "L and H TTS is working."
 spd-say -w -o lionspeech "Lion Alex is working."
 ```
@@ -241,6 +249,9 @@ native emulators and Unicorn-backed engines well, although final Orca latency
 depends on cooling, storage, PipeWire configuration, and the desktop workload.
 The release is cross-compiled with Arm GNU Toolchain and smoke-tested under
 QEMU aarch64; it has not yet been timed on physical Compute Module hardware.
+Centigram TruVoice, Microsoft Sam/Mike/Mary and the OneCore voices are built
+from source during installation, so those three need a C compiler (`cc`) on
+ARM64 rather than a shipped binary.
 
 ## Manual Speech Dispatcher setup
 
@@ -274,6 +285,9 @@ why, is in [`docs/ROADMAP.md`](docs/ROADMAP.md).
 ## Contents and licensing
 
 The pack contains open-source adapters, emulators, native compatibility shims,
-and the Unicorn runtime. Corresponding license texts are under `licenses/`.
-Original synthesizer firmware, dictionaries, ROMs, devices, and engine DLLs
-are intentionally excluded.
+vendored C engines, and the Unicorn runtime. Corresponding license texts are
+under `licenses/`. Original synthesizer firmware, dictionaries, ROMs, devices,
+and engine DLLs are intentionally excluded. The one exception is the native
+OpenTV engine's constant tables, vendored with its sources under
+`native/opentv/generated/`: those bytes are Centigram's, not OpenTV's, and
+`licenses/opentv/NOTICE` is the notice that comes with them.

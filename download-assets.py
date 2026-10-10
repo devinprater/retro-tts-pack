@@ -17,22 +17,6 @@ from pathlib import Path
 
 DOWNLOADS = (
     {
-        "name": "Centigram TruVoice 5.10 Build 16 (DECtalk.nu package)",
-        "url": (
-            "https://dectalk.nu/Software%20and%20Manuals/Software/"
-            "Centigram/cgrm_spk-win32.zip"
-        ),
-        "archive_sha256": (
-            "9d295f48e313c92ee4232b15a7a67ff9829d39ad47ca3b55599844bddb008b5c"
-        ),
-        "files": {
-            "cgrm_spk-win32/TV_ENG32.DLL": (
-                "truevoice/TV_ENG32.DLL",
-                "fcb4e8dc71dafb8b4b3acbe90db8ad87fde470e6da9ef6649a5fba2f1178b1ea",
-            ),
-        },
-    },
-    {
         "name": "BeSTSpeech 2025.5 binary release",
         "url": (
             "https://github.com/samtupy/b32tts_wrapper/releases/download/"
