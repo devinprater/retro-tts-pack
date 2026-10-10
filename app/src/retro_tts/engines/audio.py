@@ -18,13 +18,15 @@ PAUSE_WINDOW_MS = 5
 PAUSE_MINIMUM_PAUSE_MS = 60
 
 
-def _load_shortener():
-    """The C pause shortener, when the install built one.
+def load_audio_library():
+    """The compiled audio helpers, when the install built them.
 
     libretro_audio.so is compiled at install time from native/audio beside the
     engines, and none of this is a new dependency: it needs a C compiler and
-    libm, which the engines already need.  Every use falls back to the Python
-    below, so a machine without a compiler still works, only slower.
+    libm, which the engines already need.  It carries the pause shortener and
+    L&H's speaking-rate changer, both of which were sample-at-a-time Python on
+    the path to every word.  Each use falls back to the Python here, so a
+    machine without a compiler still works, only slower.
     """
     path = Path(os.environ.get("RETRO_TTS_AUDIO_LIB", "lib/libretro_audio.so"))
     try:
@@ -39,12 +41,17 @@ def _load_shortener():
         library.retro_pcm_quiet.argtypes = [
             ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
         ]
+        library.retro_time_scale.restype = ctypes.c_long
+        library.retro_time_scale.argtypes = [
+            ctypes.c_char_p, ctypes.c_long, ctypes.c_char_p, ctypes.c_long,
+            ctypes.c_int, ctypes.c_double,
+        ]
     except (OSError, AttributeError):
         return None
     return library
 
 
-_LIBRARY = _load_shortener()
+_LIBRARY = load_audio_library()
 
 
 class PCM16PauseShortener:

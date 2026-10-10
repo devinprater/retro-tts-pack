@@ -18,6 +18,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define RETRO_QUIET 1
 #define RETRO_LOUD 0
@@ -113,6 +114,114 @@ static long run_keep(const quiet_run *run, int started, int trailing,
     if (keep < 1)
         keep = 1;
     return keep;
+}
+
+/* Python's // rounds towards minus infinity; C's / truncates towards zero. */
+static long floor_div(long value, long divisor)
+{
+    long quotient = value / divisor;
+
+    if ((value % divisor != 0) && ((value < 0) != (divisor < 0)))
+        quotient--;
+    return quotient;
+}
+
+/*
+ * Change speaking rate by overlap-add, the way the pack's Python did it.
+ *
+ * L&H TTS3000's private manager ignores SAPI rate settings on its file-render
+ * path, so the pack aligns overlapping waveform windows instead, which changes
+ * duration while leaving the voices' pitch mostly alone.  Written out sample by
+ * sample in Python it cost about half a second for a paragraph: 2937060
+ * generator iterations, one per window offset per candidate.  The arithmetic is
+ * the same here, and it is the same arithmetic: floor division, clamping, and
+ * Python's round() for the hop, which is round-half-to-even.
+ *
+ * Writes at most out_capacity samples and returns how many, or -1 if the
+ * arguments are unusable or the result would not fit.
+ */
+long retro_time_scale(const short *in, long in_samples, short *out,
+                      long out_capacity, int sample_rate, double factor)
+{
+    long frame, overlap, output_hop, input_hop, search;
+    long position, out_len, index;
+
+    if (in == NULL || out == NULL || in_samples < 0 || out_capacity < 0)
+        return -1;
+    if (sample_rate <= 0)
+        return -1;
+
+    if (fabs(factor - 1.0) < 0.015) {
+        if (in_samples > out_capacity)
+            return -1;
+        memcpy(out, in, (size_t)in_samples * sizeof *out);
+        return in_samples;
+    }
+
+    frame = (long)sample_rate * 30 / 1000;
+    if (frame < 96)
+        frame = 96;
+    overlap = (long)sample_rate * 10 / 1000;
+    if (overlap < 32)
+        overlap = 32;
+    output_hop = frame - overlap;
+    input_hop = (long)rint((double)output_hop * factor);
+    if (input_hop < 1)
+        input_hop = 1;
+    search = (long)sample_rate * 4 / 1000;
+    if (search < 8)
+        search = 8;
+
+    if (in_samples <= frame) {
+        if (in_samples > out_capacity)
+            return -1;
+        memcpy(out, in, (size_t)in_samples * sizeof *out);
+        return in_samples;
+    }
+
+    memcpy(out, in, (size_t)frame * sizeof *out);
+    out_len = frame;
+    position = input_hop;
+
+    while (position + frame < in_samples) {
+        long low = position - search < 0 ? 0 : position - search;
+        long high = position + search;
+        long best = position;
+        long long best_score = 0;
+        int have_score = 0;
+        long candidate;
+        long base = out_len - overlap;
+
+        if (high > in_samples - frame)
+            high = in_samples - frame;
+        for (candidate = low; candidate <= high; candidate += 2) {
+            long long score = 0;
+            for (index = 0; index < overlap; index++)
+                score += (long long)out[base + index] * in[candidate + index];
+            if (!have_score || score > best_score) {
+                best_score = score;
+                best = candidate;
+                have_score = 1;
+            }
+        }
+        for (index = 0; index < overlap; index++) {
+            long mixed = floor_div((long)out[base + index] * (overlap - index) +
+                                       (long)in[best + index] * index,
+                                   overlap);
+            if (mixed > 32767)
+                mixed = 32767;
+            else if (mixed < -32768)
+                mixed = -32768;
+            out[base + index] = (short)mixed;
+        }
+        if (out_len + output_hop > out_capacity)
+            return -1;
+        memcpy(out + out_len, in + best + overlap,
+               (size_t)output_hop * sizeof *out);
+        out_len += output_hop;
+        position = best + input_hop;
+    }
+    return out_len;
 }
 
 /*

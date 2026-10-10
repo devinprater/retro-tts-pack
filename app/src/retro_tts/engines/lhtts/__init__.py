@@ -11,6 +11,7 @@ from array import array
 from pathlib import Path
 
 from ...text import legacy_bytes
+from ..audio import _LIBRARY as _AUDIO_LIBRARY
 
 
 SAMPLE_RATE = 11_025
@@ -129,6 +130,24 @@ def _resolve_voice(voice: str | None) -> tuple[str, int]:
     return matches[0] if len(matches) == 1 else VOICE_CATALOG[DEFAULT_VOICE]
 
 
+def _time_scale_in_c(pcm: bytes, sample_rate: int, factor: float) -> bytes | None:
+    """The same overlap-add through the compiled library, when it is there.
+
+    Returns None when there is no library or the result would not fit, and the
+    caller then uses the Python below.  Measured on a paragraph, the Python took
+    0.4 to 0.6 s of this engine's 0.94 s: 2.9 million generator iterations.
+    """
+    count = len(pcm) // 2
+    if _AUDIO_LIBRARY is None or count == 0:
+        return None
+    room = count * 2 + 8 * (sample_rate * 30 // 1000 + 96) + 8192
+    out = ctypes.create_string_buffer(room * 2)
+    got = _AUDIO_LIBRARY.retro_time_scale(pcm, count, out, room, sample_rate, factor)
+    if got < 0:
+        return None
+    return out.raw[: got * 2]
+
+
 def _time_scale(pcm: bytes, sample_rate: int, factor: float) -> bytes:
     """Change speaking rate with a compact speech-oriented overlap-add.
 
@@ -138,6 +157,9 @@ def _time_scale(pcm: bytes, sample_rate: int, factor: float) -> bytes:
     """
     if abs(factor - 1.0) < 0.015:
         return pcm
+    scaled = _time_scale_in_c(pcm, sample_rate, factor)
+    if scaled is not None:
+        return scaled
     source = array("h")
     source.frombytes(pcm)
     frame = max(96, sample_rate * 30 // 1000)

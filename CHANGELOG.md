@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Moved L&H TTS3000's speaking-rate changer into C as well, in the same library.
+  TTS3000 ignores SAPI rate settings on its file-render path, so the pack changes
+  duration itself with an overlap-add, and written sample by sample in Python it
+  searched for the best matching window with a generator inside a double loop:
+  2.9 million iterations for one paragraph, 127.7 ms, at every rate including the
+  neutral one, where it is deliberately speeding the voice up by a quarter. It
+  now takes 0.6 ms, 213 times faster. L&H is the pack's slowest engine bar one and
+  the only one with the other languages and with Carol, Michael and Michelle, so
+  the engine as a whole went from 901 ms to 695 ms for a paragraph and from 210
+  ms to 170 ms for a sentence. The rest of its cost is the emulated engine itself,
+  which is the roadmap's L&H item, not this. The audio is unchanged, checked over
+  72 buffers: real L&H output, silence, noise, alternating full-scale, the loudest
+  sample, and inputs shorter than, exactly one, and one sample longer than the
+  frame, each at eight rate factors from 0.70 to 3.00, every one byte for byte
+  identical to the Python.
+
 - Moved the pause shortener into C. It runs on the output of every engine, so it
   was the one piece of per-sample work the whole pack paid for on every
   utterance, and inside the module it cost 1.6 ms on a line and 10.9 ms on a
