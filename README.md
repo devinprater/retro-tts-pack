@@ -31,6 +31,19 @@ uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
+## What's new in 1.2.0
+
+- The Microsoft engines can speak. Sam, Mike and Mary (SAPI 5), David, Zira and
+  Mark (OneCore), and SAPI 4 with its nineteen modes: Mike in Space, in Hall and
+  in Stadium, the two whispers, and RoboSoft One through Six. Their voice data is
+  not in this archive; the installer fetches it from a checksum-pinned source.
+- The Apple generations no longer need Wine. Tiger, Leopard and Lion run through
+  Panthera's own host, natively on x86_64 and through Box64 on ARM64.
+- ARM64 is a supported target for those voices rather than a promise.
+- The native Speech Dispatcher client plays through paplay and aplay as well as
+  pw-play, and is built whenever a C compiler is present, which takes about 45 ms
+  off every key press on a machine that used to fall back to the Python one.
+
 ## What's new in 1.1.0
 
 - Added native Centigram TruVoice 5.10 and L&H TTS3000 6.x support on x86_64.

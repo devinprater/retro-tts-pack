@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-10
+
 - Added SAPI 4, Microsoft's 1999 engine, with its nineteen voice modes. The
   engine is Quinton Williams's sapi4-decomp (MIT), a decompilation of
   `msttssyn.dll` into portable C in the manner of OpenTV, vendored under
