@@ -579,7 +579,7 @@ if has_all \
     "$ASSETS/mssam/LTTS1033.LXA" "$ASSETS/mssam/r1033tts.LXA" \
     "$INSTALL_DIR/bin/sam_say"; then
     available_modules="$available_modules mssam"
-else missing_modules="$missing_modules mssam"; fi
+else skip_module mssam "its voice data; the downloader installs it from Quinton Williams's Sapple build, or supply your own Sam.spd, Mike.spd, Mary.spd and the two .LXA files"; fi
 if [ ! -x "$INSTALL_DIR/bin/zira_say" ]; then
     warn "onecore needs bin/zira_say; install.sh builds it when a C compiler (cc) is available."
 fi
@@ -590,7 +590,7 @@ if has_all \
     "$ASSETS/onecore/M1033Mark.APM" "$ASSETS/onecore/M1033Mark.BEP" "$ASSETS/onecore/M1033Mark.INI" \
     "$INSTALL_DIR/bin/zira_say"; then
     available_modules="$available_modules onecore"
-else missing_modules="$missing_modules onecore"; fi
+else skip_module onecore "its voice data; the downloader installs it from Quinton Williams's Sapple build, or copy the files from a Windows install's Speech_OneCore\\Engines\\TTS\\en-US folder"; fi
 if has_all "$ASSETS/amiganarrator/narrator.device" &&
    { [ -f "$ASSETS/amiganarrator/translator.library" ] ||
      [ -f "$ASSETS/amiganarrator/cmudict.txt" ]; }; then

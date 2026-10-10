@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Two engines that could only ever be build-tested can speak now, because their
+  voice data has a source. Sam, Mike and Mary read the SAPI 5 files
+  (`Sam.spd`, `Mike.spd`, `Mary.spd` with their `.sdf` companions, and the two
+  `.LXA` files), and David, Zira and Mark read the OneCore ones. Both sets are
+  inside Quinton Williams's Sapple build, whose downloads page publishes the
+  archive's SHA-256 and whose repository pins the OneCore files' hashes, so the
+  optional downloader installs them from a checksum-pinned archive rather than
+  from anything of ours. The entry verifies the archive against the hash Sapple
+  publishes and all eighteen members against theirs.
+
+  The side effect worth having: OneCore no longer needs a Windows install to be
+  present, so David, Zira and Mark work on any machine the pack runs on. Where
+  there is one, they can still be copied straight out of
+  `Speech_OneCore\Engines\TTS\en-US`, which is how they were first measured:
+  David 5.13 s, Zira 4.80 s and Mark 4.66 s of audio, and Sam, Mike and Mary
+  4.23, 3.80 and 3.63 s through the pack's own engine.
+
+  The data belongs to Microsoft and is bundled by Sapple for personal use, not
+  licensed, and removed on request; none of it is redistributed here, and the
+  NOTICE says so. The install now names this source when it reports either
+  engine as skipped, instead of leaving the reader to guess.
+
 - Gave the Apple generations an ARM64 host, so they no longer need x86_64. The
   optional downloader installs Panthera's pinned aarch64 release, which runs
   Apple's i386 engine through Box64, linked into it, with the same Glint AAC

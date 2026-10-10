@@ -22,6 +22,17 @@ WinTalker support includes only the open integration host. `WinTalker.dll` and
 `English.lex` are installed from the separately published NVDA add-on when the
 optional downloader is used; they are not redistributed in release archives.
 
+The SAPI 5 voices (Sam, Mike and Mary) and the OneCore voices (David, Zira and
+Mark) are run by portable C reconstructions, but they cannot speak without their
+voice data, which is Microsoft's. The optional downloader takes it from Quinton
+Williams's Sapple build (<https://quintonwilliams.me/sapple/>), which publishes
+that archive with the data inside for personal use, under Sapple's own terms and
+not under a licence, and which removes it if a rights holder asks. Sapple also
+publishes the SHA-256 of the archive and of the OneCore files, and the
+downloader checks both. None of this data is redistributed in this pack's
+release archives, and the engines here are the open reconstructions named in
+`licenses/mssam/` and `licenses/onecore/`, not Microsoft's own.
+
 Tiger, Leopard and Lion MacinTalk support includes the open integration host
 from <https://github.com/tgeczy/panthera-speech>, which the optional downloader
 installs from that project's pinned Linux releases: the i686 one on x86_64, and

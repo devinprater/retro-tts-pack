@@ -18,6 +18,78 @@ from pathlib import Path
 
 DOWNLOADS = (
     {
+        "name": (
+            "Sapple 1.1.1 Mac build, for the Microsoft SAPI 5 and OneCore"
+            " voice data (about 199 MB)"
+        ),
+        "url": "https://quintonwilliams.me/sapple/Sapple-1.1.1-mac.zip",
+        "archive_sha256": (
+            "59402650896a33419a80a62ddc36e860812b46d1a28acef511961d2ae5e957b8"
+        ),
+        # Sapple publishes its builds with the voice data inside, and the
+        # hash above is the one its downloads page states. Two engines need
+        # this: Sam/Mike/Mary read the SAPI 5 files, and David/Zira/Mark read
+        # the OneCore ones, which means OneCore no longer needs a Windows
+        # install to be present. The data is Microsoft's, bundled there for
+        # personal use; nothing of it is redistributed here.
+        "files": {
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Sam.spd": ("mssam/Sam.spd",
+                "f88bf9c012e068e18b6021e39212b5cc8ac1edb55cf5c9c0b973bbb784fa26bf",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Sam.sdf": ("mssam/Sam.sdf",
+                "2f8f9e89726cf1eb6ee9d8cc1a10754568e4a69433f031363183cd3eeb160b4e",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Mike.spd": ("mssam/Mike.spd",
+                "0ed804387d435ca54b975077c47de5bf1b7fa853553006641032fb19bbb32003",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Mike.sdf": ("mssam/Mike.sdf",
+                "35aecd196ff6b0a440c209748df042902f6ad96dd441a823958ca5f066cfea3c",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Mary.spd": ("mssam/Mary.spd",
+                "e149c8e4fe89857b1384055fc88cd70afd88fa17097a565d1782c02715043ad9",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/Mary.sdf": ("mssam/Mary.sdf",
+                "c9826b2b95fdbc0adbfe7cfbe8c4fb8b18a0834aa438c1ef818f65a47834bfc9",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/LTTS1033.LXA": ("mssam/LTTS1033.LXA",
+                "58c8989b064eea3501b1471a9ee565bed1861daa49b4ebbb1de9a6f038097e19",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/VoiceData/r1033tts.LXA": ("mssam/r1033tts.LXA",
+                "f66ca23a0f1b42fd3dde48d8cf1a8b23f33702d4c30ac9346210640c9947dba1",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/MSTTSLocEnUS.dat": ("onecore/MSTTSLocEnUS.dat",
+                "2b63d21406f3254ce2ccec3a54ae2310545cd1d4dd71c2eafe476aea03f09e61",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033David.APM": ("onecore/M1033David.APM",
+                "eeef586b4a64c7450c5ff89f263264a1861384567439a78f30ce180cdc0a24a7",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033David.BEP": ("onecore/M1033David.BEP",
+                "0f71e4e02034b8ced8ed9f1f9779e17dc05b92f0b07710cca102ccc74bb527c8",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033David.INI": ("onecore/M1033David.INI",
+                "a4cf266374abb0b9157e1f60b7ebf72b526174c312c4e6bcfc908aace94d506c",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Zira.APM": ("onecore/M1033Zira.APM",
+                "77c9a568ea19f2b6e3c6747c0ddb791b16e2c844255bbfd380b291a3ff23d924",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Zira.BEP": ("onecore/M1033Zira.BEP",
+                "a300fb916679a7275df11b3323eaa1a6ad5a52862cbf845b7c6e09b7176df86e",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Zira.INI": ("onecore/M1033Zira.INI",
+                "2d475afd1d833a38fb81fd1d9b3551f2cb8728d5725ee8ac74e2d92297ac61fa",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Mark.APM": ("onecore/M1033Mark.APM",
+                "956930b9a2ecd848dfa69d5a6bf9773bcac201ff1bee3ac66edca6089397056b",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Mark.BEP": ("onecore/M1033Mark.BEP",
+                "ae89269d105f5fbef018d37973c0d2a134265631f555f827a51f49ded3800753",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Mark.INI": ("onecore/M1033Mark.INI",
+                "66ff8fbdcd3773bd47c6cd082def91836e0aefff8d96e8d4cd0b2b6a89a31ada",
+            ),
+        },
+    },
+    {
         "name": "Panthera native aarch64 Linux host (Tiger, Leopard, Lion MacinTalk)",
         "url": (
             "https://github.com/tgeczy/panthera-speech/releases/download/"
