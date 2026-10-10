@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Made SAM and Atari ST Speech faster without changing one sample either of
+  them produces. The SAM renderer worked its sine out with `math.sin` about a
+  million times for a paragraph, when the argument is always one byte and so
+  has only 256 answers, and re-read its frame tables on each of the five steps
+  of every frame when none of them move in between. The ST Speech renderer
+  looked the same sound-register values up through the DAC table on every tick,
+  and packed every sample with a separate call. Measured here, a SAM paragraph
+  went from 606 ms to 251 ms and a mixed 41 line corpus from 4.37 s to 1.87 s;
+  ST Speech gained about 15%. Every render was compared byte for byte with the
+  previous revision -- 80 utterances across the two engines -- and none
+  differed, so this buys Orca the first word sooner and nothing else.
 - Centigram TruVoice is native OpenTV now: built from source when `install.sh`
   runs, instead of running `TV_ENG32.DLL` under Unicorn. No DLL, no shim, and
   no x86_64-only binary, so TruVoice is available on aarch64 as well (issue

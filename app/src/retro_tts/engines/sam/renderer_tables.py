@@ -262,9 +262,18 @@ SAMPLE_TABLE = [
 ]
 PHONEME_PERIOD = 1
 PHONEME_QUESTION = 2
+# The renderer masks its phase to one byte before calling sinus, so those 256
+# values are the whole domain and they are worked out once.  sinus is the
+# innermost call in the renderer -- about a million of them for a paragraph --
+# and the arithmetic is identical either way.
+SINUS_TABLE = tuple(
+    int(math.sin(2 * math.pi * (value / 256)) * 127) for value in range(256)
+)
+
+
 def sinus(x):
-    """Calculate sine wave value."""
-    return int(math.sin(2 * math.pi * (x / 256)) * 127)
+    """Calculate sine wave value. x is a phase already masked to 0..255."""
+    return SINUS_TABLE[x]
 def get_frequency(phoneme):
     """Get frequency data for a phoneme."""
     if phoneme < 0 or phoneme >= len(FREQUENCY_DATA):

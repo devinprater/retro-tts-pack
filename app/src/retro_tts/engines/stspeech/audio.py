@@ -5,6 +5,8 @@
 # loops; otherwise falls back to pure Python.
 
 import struct
+import sys
+from array import array
 
 try:
     import numpy as np
@@ -71,6 +73,19 @@ def _upsample_frames(frame_data, num_frames, factor):
 
 # YM2149 logarithmic DAC (~1.5 dB per step)
 _ym_dac = [0, 1, 1, 2, 3, 4, 6, 8, 11, 16, 22, 31, 44, 63, 89, 127]
+
+# The register bytes for a waveform sum never change, and the renderer only
+# reads three of them through the DAC table, so the whole per-tick lookup is
+# a table of its own.  Two of them: the unvoiced path adds the noise channel
+# in place of the third.
+_REG_ABC = tuple(
+    _ym_dac[reg[1] & 0x0F] + _ym_dac[reg[3] & 0x0F] + _ym_dac[reg[5] & 0x0F]
+    for reg in snd_regs
+)
+_REG_AB = tuple(
+    _ym_dac[reg[1] & 0x0F] + _ym_dac[reg[3] & 0x0F]
+    for reg in snd_regs
+)
 
 
 def _precompute_lfsr():
@@ -312,16 +327,8 @@ def _render_python(spchbuff, num_frames, rate, pitch, ticks_per_frame, orig_tpf)
                 pb = (pb + freq_b_val) & 0xFF
                 pc = (pc + freq_c_val) & 0xFF
 
-                va = wt_a[pa] & 0xFF
-                vb = wt_b[pb] & 0xFF
-                vc = wt_c[pc] & 0xFF
-                wsum_val = (va + vb + vc) & 0xFF
-
-                reg = snd_regs[wsum_val]
-                vol_a = reg[1] & 0x0F
-                vol_b = reg[3] & 0x0F
-                vol_c = reg[5] & 0x0F
-                out = _ym_dac[vol_a] + _ym_dac[vol_b] + _ym_dac[vol_c]
+                wsum_val = (wt_a[pa] + wt_b[pb] + wt_c[pc]) & 0xFF
+                out = _REG_ABC[wsum_val]
 
                 idx = tick_offset + t
                 if idx < total_ticks:
@@ -342,15 +349,8 @@ def _render_python(spchbuff, num_frames, rate, pitch, ticks_per_frame, orig_tpf)
                 pb = (pb + freq_b_val) & 0xFF
                 pc = (pc + freq_c_val) & 0xFF
 
-                va = wt_a[pa] & 0xFF
-                vb = wt_b[pb] & 0xFF
-                vc = wt_c[pc] & 0xFF
-                wsum_val = (va + vb + vc) & 0xFF
-
-                reg = snd_regs[wsum_val]
-                vol_a = reg[1] & 0x0F
-                vol_b = reg[3] & 0x0F
-                out = _ym_dac[vol_a] + _ym_dac[vol_b] + noise_bits[t] * dac_chc
+                wsum_val = (wt_a[pa] + wt_b[pb] + wt_c[pc]) & 0xFF
+                out = _REG_AB[wsum_val] + noise_bits[t] * dac_chc
 
                 idx = tick_offset + t
                 if idx < total_ticks:
@@ -385,8 +385,7 @@ def _render_python(spchbuff, num_frames, rate, pitch, ticks_per_frame, orig_tpf)
         pcm_float[i] = prev
 
     # Scale, clip, remove DC
-    for i in range(num_pcm):
-        pcm_float[i] *= OUTPUT_SCALE
+    pcm_float = [value * OUTPUT_SCALE for value in pcm_float]
 
     dc = sum(pcm_float) / len(pcm_float) if pcm_float else 0.0
 
@@ -398,7 +397,7 @@ def _render_python(spchbuff, num_frames, rate, pitch, ticks_per_frame, orig_tpf)
     fade_in_samples = min(132, num_pcm // 4)
     fade_out_start = num_pcm - fade_out_samples
 
-    result = bytearray(num_pcm * 2)
+    samples = array("h", bytes(num_pcm * 2))
     for i in range(num_pcm):
         v = int(pcm_float[i] - dc)
         if v < -32768:
@@ -412,9 +411,11 @@ def _render_python(spchbuff, num_frames, rate, pitch, ticks_per_frame, orig_tpf)
             t = (i - fade_out_start) / fade_out_samples
             smooth = 1.0 - (3.0 * t * t - 2.0 * t * t * t)
             v = int(v * smooth)
-        struct.pack_into('<h', result, i * 2, v)
+        samples[i] = v
 
-    return bytes(result)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    return samples.tobytes()
 
 
 # ---------------------------------------------------------------------------

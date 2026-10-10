@@ -313,41 +313,57 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
         return
     glottal_pulse = pitches[0]
     mem38 = int(glottal_pulse * 0.75)
+    # None of this changes while the frames are walked, and the walk runs once
+    # per output sample -- about a quarter of a million times for a paragraph.
+    # The tables, their lengths and the sine table are looked up once instead.
+    amp0_tab, amp1_tab, amp2_tab = amplitude
+    freq0_tab, freq1_tab, freq2_tab = frequency
+    amp0_end, amp1_end, amp2_end = len(amp0_tab), len(amp1_tab), len(amp2_tab)
+    freq0_end, freq1_end, freq2_end = len(freq0_tab), len(freq1_tab), len(freq2_tab)
+    pitch_end = len(pitches)
+    flag_end = len(sampled_consonant_flag)
+    sine = sinus
     while frame_count > 0:
-        if pos >= len(sampled_consonant_flag):
+        if pos >= flag_end:
             break
         flags = sampled_consonant_flag[pos]
         if (flags & 248) != 0:
-            pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < len(pitches) else 0
+            pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < pitch_end else 0
             last_sample_offset = render_sample(output, last_sample_offset, flags, pitch_val)
             pos += 2
             frame_count -= 2
             speedcounter = speed
         else:
-            ary = []
             p1 = phase1 * 256  # Fixed point
             p2 = phase2 * 256
             p3 = phase3 * 256
+            # pos does not move while the five steps of one frame are drawn, so
+            # the amplitude, the frequency and the phase step they give are the
+            # same five times over and are worked out once.
+            amp0 = amp0_tab[pos] & 0x0F if pos < amp0_end else 0
+            amp1 = amp1_tab[pos] & 0x0F if pos < amp1_end else 0
+            amp2 = amp2_tab[pos] & 0x0F if pos < amp2_end else 0
+            freq0 = freq0_tab[pos] if pos < freq0_end else 0
+            freq1 = freq1_tab[pos] if pos < freq1_end else 0
+            freq2 = freq2_tab[pos] if pos < freq2_end else 0
+            step1 = int(freq0 * 256 / 4)
+            step2 = int(freq1 * 256 / 4)
+            step3 = int(freq2 * 256 / 4)
+            ary = [0, 0, 0, 0, 0]
             for k in range(5):
-                sp1 = sinus((p1 >> 8) & 0xFF)
-                sp2 = sinus((p2 >> 8) & 0xFF)
+                sp1 = sine((p1 >> 8) & 0xFF)
+                sp2 = sine((p2 >> 8) & 0xFF)
                 rp3 = -0x70 if ((p3 >> 8) & 0xFF) < 129 else 0x70
-                amp0 = amplitude[0][pos] & 0x0F if pos < len(amplitude[0]) else 0
-                amp1 = amplitude[1][pos] & 0x0F if pos < len(amplitude[1]) else 0
-                amp2 = amplitude[2][pos] & 0x0F if pos < len(amplitude[2]) else 0
-                sin1 = sp1 * amp0
-                sin2 = sp2 * amp1
-                rect = rp3 * amp2
-                mux = sin1 + sin2 + rect
-                mux = mux / 32
+                mux = (sp1 * amp0 + sp2 * amp1 + rp3 * amp2) / 32
                 mux = int(mux) + 128  # Go from signed to unsigned
-                ary.append(max(0, min(255, mux)))
-                freq0 = frequency[0][pos] if pos < len(frequency[0]) else 0
-                freq1 = frequency[1][pos] if pos < len(frequency[1]) else 0
-                freq2 = frequency[2][pos] if pos < len(frequency[2]) else 0
-                p1 += int(freq0 * 256 / 4)
-                p2 += int(freq1 * 256 / 4)
-                p3 += int(freq2 * 256 / 4)
+                if mux < 0:
+                    mux = 0
+                elif mux > 255:
+                    mux = 255
+                ary[k] = mux
+                p1 += step1
+                p2 += step2
+                p3 += step3
             output.write_array(0, ary)
             speedcounter -= 1
             if speedcounter == 0:
@@ -367,9 +383,9 @@ def process_frames(output, frame_count, speed, frequency, pitches, amplitude, sa
                     phase2 = phase2 + freq1
                     phase3 = phase3 + freq2
                     continue
-                pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < len(pitches) else 0
+                pitch_val = pitches[pos & 0xFF] if (pos & 0xFF) < pitch_end else 0
                 last_sample_offset = render_sample(output, last_sample_offset, flags, pitch_val)
-            if pos < len(pitches):
+            if pos < pitch_end:
                 glottal_pulse = pitches[pos]
             else:
                 glottal_pulse = 0

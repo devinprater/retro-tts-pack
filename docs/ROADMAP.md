@@ -7,6 +7,15 @@ of work; nothing here is speculative except where explicitly marked.
 
 ## Recently completed
 
+- **The pure-Python engines were the slow half.** A SAM paragraph cost 606 ms of
+  synthesis against about 6 ms for the native engines, and ST Speech 127 ms.
+  Neither figure is a limit of the engine, only of how the Python was written:
+  SAM recomputed a 256-value sine with `math.sin` a million times a paragraph and
+  re-read frame data that does not move inside the inner loop, and ST Speech
+  looked up fixed values through a table on every tick. Both now do that work
+  once. SAM is 2.4x faster and ST Speech 1.15x, with every output byte identical
+  to the revision before, checked over 80 utterances.
+
 - **Install scope**, was #1. The README now states plainly that this is a per-user
   install with no system-wide mode, that `sudo ./install.sh` puts everything
   under `/root` where the user's screen reader never looks, and how to recover
@@ -46,29 +55,7 @@ real machine and probably a third-party repo or a build. Needs a Pi.
 
 ---
 
-## 2. Native TrueVoice engine on ARM64 via OpenTV (#6)
-
-TruVoice 5.10 has been decompiled to portable C as
-[OpenTV](https://github.com/RetroBunn/tv-decomp) (MIT, verified byte-for-byte
-against the 1997 binary). It builds and speaks natively on aarch64 — measured:
-34/34 English + 14/14 Japanese + 37/37 Spanish sources compiled, `libtvtts.so`
-linked as ELF 64-bit aarch64, and a probe produced 69,080 samples of which 57,136
-were non-silent.
-
-Remaining work is an adapter, not research: the pack's shim exports
-`tv_create`/`tv_init`/`tv_select_voice`/`tv_speak`; OpenTV exports
-`tvtts_create`/`tvtts_set_voice`/`tvtts_speak_utf8`. The engine module binds via
-`ctypes` by name, so only that layer changes.
-
-⛔ **This is TruVoice, not L&H.** OpenTV has 10 voices, English only. It would lose
-Carol, British English, the other seven languages, and Michael/Michelle. Present it
-as its own engine, never as a replacement for lhtts.
-
-See #6.
-
----
-
-## 3. Decompile the L&H TTS3000 engine — lowest priority
+## 2. Decompile the L&H TTS3000 engine — lowest priority
 
 **Do not start this unless every item above is done and someone actively wants
 Carol back on ARM.** It is a multi-month reverse-engineering effort with no
@@ -92,6 +79,32 @@ the L&H TTS3000 concatenative engine across its nine languages (American English
 British English, French, German, Italian, Spanish, Dutch, Russian, Korean), which
 is a much larger surface than TruVoice's ten English voices.
 
-**Until then:** mark `lhtts` and `truevoice` unavailable on aarch64, naming the
-missing shim and the architecture. Do not report it as "missing proprietary
-assets" — that sends users hunting for DLLs they already have.
+**Until then:** mark `lhtts` unavailable on aarch64, naming the missing shim
+and the architecture. Do not report it as "missing proprietary assets" — that
+sends users hunting for DLLs they already have.
+
+---
+
+## 3. Atari ST Speech sounds different depending on whether numpy is installed
+
+Measured, and left alone because it is a behaviour question rather than a bug
+with one right answer.
+
+`engines/stspeech/audio.py` carries two renderers: a vectorised one used when
+`numpy` can be imported, and a pure-Python fallback. They do not produce the
+same samples, and the vectorised one is only about 1.3x faster, so which of the
+two a user hears depends on whether numpy happens to be on their machine — a
+package that is not a dependency of this pack, though plenty of distributions
+install it for something else.
+
+Three ways out, none obviously right:
+
+* Depend on numpy and use the vectorised path always. Uniform, but adds a
+  dependency to a pack that has one, and changes what everyone hears today.
+* Never use it: prefer the fallback whatever is installed. Uniform the other
+  way, and gives up the 1.3x where it is available.
+* Leave it. The two are close enough that the difference has not been reported,
+  and both paths are tested.
+
+Worth deciding before the next release, because the answer changes the shipped
+sound.
