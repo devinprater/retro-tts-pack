@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Made BeSTspeech answer sooner, in the three places where the pack's own code
+  was doing by hand what the engine does faster. The +12 dB the language builds
+  need was applied a sample at a time in Python, and measured, that loop was 84
+  to 95% of a language voice's synthesis: 41.7 ms of a 44.1 ms four-sentence
+  utterance. `bst_cli` grew `--gain-db` and scales in C, rounding to nearest
+  even and clipping exactly as `round()` did, which brings that utterance down
+  to 2.7 ms. Every render also ran the engine twice, once through `bst_length`
+  to count the samples and again through `bst_say` to produce them, so the wait
+  before any sound was paid twice; one pass into a buffer sized from the text is
+  enough now, with the exact path kept for a text that overruns it, and a
+  paragraph went from 5.5 ms to 3.5 ms. The pause shortener, which runs on the
+  output of every engine, summed its window through a Python generator; it adds
+  the same integers in the same order through `sum(map(mul, ...))`, so the total
+  is the same number exactly with the loop in C. Nothing any engine says has
+  changed: 390 renders through the thirteen builds and three settings came out
+  byte for byte identical between the old front end and the new, as did 354 of
+  those with the gain set against the Python loop, and every shortened file.
+
 - Made SAM and Atari ST Speech faster without changing one sample either of
   them produces. The SAM renderer worked its sine out with `math.sin` about a
   million times for a paragraph, when the argument is always one byte and so

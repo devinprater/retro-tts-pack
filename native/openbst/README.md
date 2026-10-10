@@ -9,6 +9,26 @@ and nothing to import at install time.
 
 `build.sh` builds `bst_cli`, this pack's front end, from those sources.
 
+## What the front end does besides speak
+
+Two things it does are worth knowing about, because both were once done in
+Python and both showed up as the wait before a word is heard.
+
+The language builds come out about 12 dB below the classic one. The pack makes
+that up, and it used to do so a sample at a time in Python, which measured 84
+to 95% of a language voice's render time -- 41.7 ms of a 44.1 ms utterance. The
+`--gain-db` option does it in C instead, rounding to nearest even and clipping,
+which is what Python's `round()` did on the same double; the samples are
+unchanged. A four-sentence utterance went from 44.1 ms to 2.4 ms of Python-side
+work.
+
+It also renders once rather than twice. `bst_length` runs the whole engine to
+count the samples and `bst_say` then runs it again to produce them, so the wait
+before any sound was paid twice. `bst_say` reports how much it made, so a buffer
+sized from the text is enough, and only a text that somehow overruns it asks the
+engine for the exact size and says itself again. A paragraph went from 18.4 ms to
+9.3 ms.
+
 ## The 1998 builds are not offered
 
 openbst carries twenty builds. This pack exposes the 1995 build and the

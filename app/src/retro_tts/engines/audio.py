@@ -5,6 +5,7 @@ import math
 import wave
 from array import array
 from collections.abc import Callable
+from operator import mul
 
 
 class PCM16PauseShortener:
@@ -43,7 +44,12 @@ class PCM16PauseShortener:
             samples = values
         if not samples:
             return True
-        rms = math.isqrt(sum(sample * sample for sample in samples) // len(samples))
+        # Sum of squares as `sum(map(mul, samples, samples))` rather than a
+        # generator: the same integers added in the same order, so the same
+        # total exactly, but the loop stays in C.  This runs on every window of
+        # every utterance, and it is the largest single cost in a long one.
+        total = sum(map(mul, samples, samples))
+        rms = math.isqrt(total // len(samples))
         return rms < self.threshold
 
     def _flush_quiet(self, *, trailing: bool = False) -> bool:
@@ -135,7 +141,7 @@ def trim_leading_audio(
         chunk = samples[offset : offset + block]
         if not chunk:
             break
-        rms = math.isqrt(sum(sample * sample for sample in chunk) // len(chunk))
+        rms = math.isqrt(sum(map(mul, chunk, chunk)) // len(chunk))
         if rms >= threshold:
             consecutive += 1
             if consecutive >= sustained_blocks:

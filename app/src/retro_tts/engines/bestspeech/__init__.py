@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from array import array
 from pathlib import Path
 
 from ..audio import trim_leading_audio
@@ -71,21 +70,6 @@ def _character_pitch(text: str, pitch: int) -> int:
     return pitch
 
 
-def _boost_v2_pcm(pcm: bytearray) -> None:
-    """Match the newer NVDA language profile's +12 dB default gain.
-
-    The 1995 build already comes out at that level and the 2006 ones do not, so
-    only the language voices are lifted.
-    """
-    samples = array("h")
-    samples.frombytes(pcm)
-    factor = 10.0 ** (12.0 / 20.0)
-    for index, sample in enumerate(samples):
-        amplified = round(sample * factor)
-        samples[index] = max(-32768, min(32767, amplified))
-    pcm[:] = samples.tobytes()
-
-
 def text_to_wav(
     text: str, rate: int = 50, pitch: int = 50, voice: str | None = None,
 ) -> bytes:
@@ -120,7 +104,13 @@ def text_to_wav(
                 "--voice", str(head), "--rate", str(native_rate),
                 "--pitch", str(_native_pitch(effective_pitch)),
                 "--top", str(inflection), "--exc", str(exc),
-                "--unvoiced", str(gain), "--filename", output,
+                "--unvoiced", str(gain),
+                # The 1995 build already comes out at the newer NVDA language
+                # profile's +12 dB and the 2006 ones do not, so only the
+                # language voices are lifted.  bst_cli scales them, because
+                # doing it a sample at a time here was most of the render.
+                "--gain-db", "12" if language != "classic" else "0",
+                "--filename", output,
                 text.encode(codepage, "replace"),
             ],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
@@ -137,10 +127,6 @@ def text_to_wav(
             os.unlink(output)
         except FileNotFoundError:
             pass
-    if language != "classic":
-        pcm = bytearray(data[44:])
-        _boost_v2_pcm(pcm)
-        data = data[:44] + bytes(pcm)
     return trim_leading_audio(data)
 
 
