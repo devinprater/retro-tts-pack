@@ -87,6 +87,50 @@ DOWNLOADS = (
             "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/OneCoreVoice/M1033Mark.INI": ("onecore/M1033Mark.INI",
                 "66ff8fbdcd3773bd47c6cd082def91836e0aefff8d96e8d4cd0b2b6a89a31ada",
             ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/msttssyn.dll": (
+                "sapi4/msttssyn.dll",
+                "a8a2ddb9b82b4325e1315f481302cd5ba9edcf3742425ed582370f1b3940f731",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/sam.vce": (
+                "sapi4/sam.vce",
+                "7ebd8216f022db406c11064af11109d80c62d162db3ee6aef388e51fd90579b7",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/sam.cfg": (
+                "sapi4/sam.cfg",
+                "63d67120fab657fe2fa995e0131734397a73e9e55497567d34cdc188fcc86a89",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/male.vce": (
+                "sapi4/male.vce",
+                "516716a1b9ef27c44acdab6f1610f4cc3a0cc7a368b4e4607a87a147255990f0",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/male.cfg": (
+                "sapi4/male.cfg",
+                "a2de20cbd52e3df9937829c7e5ac16ea70245447abbe444719db396cac7cd911",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/female.vce": (
+                "sapi4/female.vce",
+                "24aacb9a15a7fbcb72b26ea54c03f593e6a8b4f757145582ab0833c00462171f",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/female.cfg": (
+                "sapi4/female.cfg",
+                "5a2b7d9e47e555c4ae5d2b58f20e37c789ecf1136eb50cb06fc8d7ebd43396fc",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/male8.vce": (
+                "sapi4/male8.vce",
+                "da5b69e296d4b0766c4bf903d72177a48803d0031829fedb79f300f2e15acdad",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/male8.cfg": (
+                "sapi4/male8.cfg",
+                "fd1efc933e79449af855ee63a748420090f932c6a6018ddddded50a99c46471d",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/female8.vce": (
+                "sapi4/female8.vce",
+                "8b16997893b01b6e1ff42b10ca12f5ce21b22aaebeb2262f17d809e2305e9e53",
+            ),
+            "Sapple.app/Contents/PlugIns/ClassicVoicesExtension.appex/Contents/Resources/SAPI4Voices/female8.cfg": (
+                "sapi4/female8.cfg",
+                "3b3262cb63a2027bb1340a21be4c937f87a59d404ab3f627c5b314c753de1670",
+            ),
         },
     },
     {

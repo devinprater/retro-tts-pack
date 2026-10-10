@@ -278,6 +278,8 @@ export RETRO_TTS_LHTTS_DATA="\$INSTALL_DIR/assets/lhtts"
 export RETRO_TTS_TRUEVOICE_CLI="\$INSTALL_DIR/bin/tv_cli"
 export RETRO_TTS_MSSAM_CLI="\$INSTALL_DIR/bin/sam_say"
 export RETRO_TTS_MSSAM_DATA="\$INSTALL_DIR/assets/mssam"
+export RETRO_TTS_SAPI4_CLI="\$INSTALL_DIR/bin/sapi4_speak"
+export RETRO_TTS_SAPI4_DATA="\$INSTALL_DIR/assets/sapi4"
 export RETRO_TTS_ONECORE_CLI="\$INSTALL_DIR/bin/zira_say"
 export RETRO_TTS_ONECORE_DATA="\$INSTALL_DIR/assets/onecore"
 export RETRO_TTS_BESTSPEECH_CLI="\$INSTALL_DIR/bin/bst_cli"
@@ -344,6 +346,7 @@ build_native_engine() {
 }
 build_native_engine "Centigram TruVoice" opentv tv_cli
 build_native_engine "Microsoft Sam, Mike and Mary" sam sam_say
+build_native_engine "SAPI 4 (Sam, Mike, Mary and their modes)" sapi4 sapi4_speak
 build_native_engine "Microsoft David, Zira and Mark" onecore zira_say
 
 # The pause shortener runs on the output of every engine, which makes it the
@@ -443,6 +446,8 @@ Environment=RETRO_TTS_LHTTS_DATA=$INSTALL_DIR/assets/lhtts
 Environment=RETRO_TTS_TRUEVOICE_CLI=$INSTALL_DIR/bin/tv_cli
 Environment=RETRO_TTS_MSSAM_CLI=$INSTALL_DIR/bin/sam_say
 Environment=RETRO_TTS_MSSAM_DATA=$INSTALL_DIR/assets/mssam
+Environment=RETRO_TTS_SAPI4_CLI=$INSTALL_DIR/bin/sapi4_speak
+Environment=RETRO_TTS_SAPI4_DATA=$INSTALL_DIR/assets/sapi4
 Environment=RETRO_TTS_ONECORE_CLI=$INSTALL_DIR/bin/zira_say
 Environment=RETRO_TTS_ONECORE_DATA=$INSTALL_DIR/assets/onecore
 Environment=RETRO_TTS_ECHOTALK_LIB=$INSTALL_DIR/lib/libechotalk.$architecture.so
@@ -580,6 +585,17 @@ if has_all \
     "$INSTALL_DIR/bin/sam_say"; then
     available_modules="$available_modules mssam"
 else skip_module mssam "its voice data; the downloader installs it from Quinton Williams's Sapple build, or supply your own Sam.spd, Mike.spd, Mary.spd and the two .LXA files"; fi
+if [ ! -x "$INSTALL_DIR/bin/sapi4_speak" ]; then
+    warn "SAPI 4 needs bin/sapi4_speak; install.sh builds it when a C compiler (cc) is available."
+elif has_all \
+    "$ASSETS/sapi4/msttssyn.dll" "$ASSETS/sapi4/sam.vce" "$ASSETS/sapi4/sam.cfg" \
+    "$ASSETS/sapi4/male.vce" "$ASSETS/sapi4/male.cfg" \
+    "$ASSETS/sapi4/female.vce" "$ASSETS/sapi4/female.cfg" \
+    "$ASSETS/sapi4/male8.vce" "$ASSETS/sapi4/male8.cfg" \
+    "$ASSETS/sapi4/female8.vce" "$ASSETS/sapi4/female8.cfg" \
+    "$INSTALL_DIR/bin/sapi4_speak"; then
+    available_modules="$available_modules sapi4"
+else skip_module sapi4 "Microsoft's msttssyn.dll and its voice files; the downloader installs them from Quinton Williams's Sapple build"; fi
 if [ ! -x "$INSTALL_DIR/bin/zira_say" ]; then
     warn "onecore needs bin/zira_say; install.sh builds it when a C compiler (cc) is available."
 fi

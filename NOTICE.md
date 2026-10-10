@@ -44,6 +44,13 @@ separately published Tiger, Leopard, and Lion Mac OS X engines,
 SpeechDictionary frameworks, and voices from DECtalk.nu's Apple directory, but
 they are not redistributed in release archives.
 
+SAPI 4 support includes Quinton Williams's sapi4-decomp (MIT), a decompilation
+of Microsoft's 1999 `msttssyn.dll` into portable C, vendored under
+`native/sapi4/` with its licence in `licenses/sapi4/`. That engine reads
+Microsoft's own DLL and voice files at run time; the optional downloader
+installs them from the Sapple build described above, and none of them are
+redistributed here.
+
 Native engine sources are vendored under `native/`, each under its own MIT
 license in `licenses/`:
 

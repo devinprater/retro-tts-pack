@@ -94,6 +94,11 @@ def _render(
         wav = onecore_to_wav(
             text, rate=rate, pitch=pitch, volume=volume, voice=voice,
         )
+    elif engine == "sapi4":
+        from .engines.sapi4 import text_to_wav as sapi4_to_wav
+        wav = sapi4_to_wav(
+            text, rate=rate, pitch=pitch, volume=volume, voice=voice,
+        )
     elif engine == "wintalker":
         from .engines.wintalker import text_to_wav as wintalker_to_wav
         wav = wintalker_to_wav(text, rate=rate, pitch=pitch, voice=voice)
@@ -202,7 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
             "doubletalkpc",
             "bestspeech", "softvoice",
             "lhtts", "truevoice",
-            "mssam", "onecore",
+            "mssam", "onecore", "sapi4",
             "amiganarrator",
             "wintalker",
             "echotalk", "outspoken",

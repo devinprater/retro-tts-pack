@@ -18,7 +18,9 @@ and fourteen on ARM64 (aarch64):
 - EchoTalk / Echo II Textalker 1.3 and 3.1.3
 - OutSpoken: MacinTalk 1, 2, 3, and Pro
 - Centigram TruVoice 5.10
-- Microsoft Sam, Mike and Mary (SAPI 5)
+- Microsoft Sam, Mike and Mary (SAPI 5), and SAPI 4, whose engine is the
+  1999 one and whose nineteen voice modes include Mike in Space, in Hall and
+  in Stadium, the two whispers, and RoboSoft One through Six
 - Microsoft David, Zira and Mark (Windows OneCore)
 - L&H TTS3000 6.x (x86_64)
 - Panthera Speech generations: Tiger 10.4, Leopard 10.5, and Lion 10.7

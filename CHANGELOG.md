@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Added SAPI 4, Microsoft's 1999 engine, with its nineteen voice modes. The
+  engine is Quinton Williams's sapi4-decomp (MIT), a decompilation of
+  `msttssyn.dll` into portable C in the manner of OpenTV, vendored under
+  `native/sapi4/` and built at install time. The modes are the engine's own, as
+  `sapi4_speak -d DIR -l` reports them: Sam, Mike and Mary with in Hall, in
+  Space, in Stadium and for Telephone variants, Female and Male Whisper, and
+  RoboSoft One through Six. The telephone modes run at 8 kHz, and the whispers
+  are quiet by nature, measured at a peak of 6,258 against 30,000 for the loud
+  ones.
+
+  Its data is Microsoft's and is not in the tree: the optional downloader takes
+  `msttssyn.dll` and the five voice pairs from the same Sapple build the SAPI 5
+  and OneCore files come from, pinned by hash, with the DLL matching the hash
+  sapi4-decomp names in its own README.
+
+  Two things worth writing down. It compiles only with `-std=gnu11`: strict
+  `c11` hides `setenv`, the same feature-macro trap the pack's other engines
+  taught. And its CLI writes a WAV to a path, not to stdout, so the module
+  writes a temporary file and reads it back, as the SAPI 5 and OneCore modules
+  do. Rate and pitch keep to a modest span around the engine's own values, the
+  way those two modules do, rather than the engine's whole 30 to 450 words per
+  minute. Synthesis is fast: 0.003 s of work for 1.6 s of audio, about 550 times
+  real time.
+
 - Two engines that could only ever be build-tested can speak now, because their
   voice data has a source. Sam, Mike and Mary read the SAPI 5 files
   (`Sam.spd`, `Mike.spd`, `Mary.spd` with their `.sdf` companions, and the two
