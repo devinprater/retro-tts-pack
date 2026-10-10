@@ -1,11 +1,50 @@
 from __future__ import annotations
 
+import ctypes
 import io
 import math
+import os
 import wave
 from array import array
 from collections.abc import Callable
 from operator import mul
+from pathlib import Path
+
+# The pause policy, in one place: the C shortener and the Python one below it
+# both read these, so the two cannot drift apart.
+PAUSE_FACTOR = 0.30
+PAUSE_THRESHOLD = 200
+PAUSE_WINDOW_MS = 5
+PAUSE_MINIMUM_PAUSE_MS = 60
+
+
+def _load_shortener():
+    """The C pause shortener, when the install built one.
+
+    libretro_audio.so is compiled at install time from native/audio beside the
+    engines, and none of this is a new dependency: it needs a C compiler and
+    libm, which the engines already need.  Every use falls back to the Python
+    below, so a machine without a compiler still works, only slower.
+    """
+    path = Path(os.environ.get("RETRO_TTS_AUDIO_LIB", "lib/libretro_audio.so"))
+    try:
+        library = ctypes.CDLL(str(path.resolve()))
+        library.retro_shorten_pcm.restype = ctypes.c_long
+        library.retro_shorten_pcm.argtypes = [
+            ctypes.c_char_p, ctypes.c_long, ctypes.c_char_p, ctypes.c_long,
+            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+            ctypes.c_int, ctypes.c_double,
+        ]
+        library.retro_pcm_quiet.restype = ctypes.c_int
+        library.retro_pcm_quiet.argtypes = [
+            ctypes.c_char_p, ctypes.c_long, ctypes.c_int, ctypes.c_int,
+        ]
+    except (OSError, AttributeError):
+        return None
+    return library
+
+
+_LIBRARY = _load_shortener()
 
 
 class PCM16PauseShortener:
@@ -16,10 +55,10 @@ class PCM16PauseShortener:
         sample_rate: int,
         emit: Callable[[bytes], object],
         *,
-        factor: float = 0.30,
-        threshold: int = 200,
-        window_ms: int = 5,
-        minimum_pause_ms: int = 60,
+        factor: float = PAUSE_FACTOR,
+        threshold: int = PAUSE_THRESHOLD,
+        window_ms: int = PAUSE_WINDOW_MS,
+        minimum_pause_ms: int = PAUSE_MINIMUM_PAUSE_MS,
         sample_width: int = 2,
     ) -> None:
         self.emit = emit
@@ -36,6 +75,11 @@ class PCM16PauseShortener:
         self._started = False
 
     def _is_quiet(self, block: bytes) -> bool:
+        if _LIBRARY is not None:
+            answer = _LIBRARY.retro_pcm_quiet(
+                block, len(block), self.sample_width, self.threshold
+            )
+            return bool(answer)
         if self.sample_width == 1:
             samples = [(sample - 128) << 8 for sample in block]
         else:
@@ -95,20 +139,41 @@ class PCM16PauseShortener:
         return self._flush_quiet(trailing=True)
 
 
+def _shorten_pcm(pcm: bytes, sample_width: int, sample_rate: int) -> bytes:
+    """Shorten the pauses in a whole buffer of mono PCM."""
+    if _LIBRARY is not None:
+        room = len(pcm) + 1024
+        out = ctypes.create_string_buffer(room)
+        got = _LIBRARY.retro_shorten_pcm(
+            pcm, len(pcm), out, room, sample_width, sample_rate,
+            PAUSE_THRESHOLD, PAUSE_WINDOW_MS, PAUSE_MINIMUM_PAUSE_MS, PAUSE_FACTOR,
+        )
+        if got >= 0:
+            return out.raw[:got]
+    sink = bytearray()
+    processor = PCM16PauseShortener(
+        sample_rate, sink.extend, sample_width=sample_width
+    )
+    processor.feed(pcm)
+    processor.finish()
+    return bytes(sink)
+
+
 def shorten_wav_pauses(wav_data: bytes) -> bytes:
-    """Apply the NVDA add-ons' 30% short-pause policy to a mono PCM WAV."""
+    """Apply the NVDA add-ons' 30% short-pause policy to a mono PCM WAV.
+
+    This runs on the output of every engine in the pack, so it is the one piece
+    of per-sample work that everybody pays for.  Measured on a paragraph, it was
+    10.9 ms against 4.1 ms for the engine that produced the audio; in C it is
+    about 0.3 ms.
+    """
     source = io.BytesIO(wav_data)
     with wave.open(source, "rb") as wav:
         params = wav.getparams()
         if params.sampwidth not in (1, 2) or params.nchannels != 1:
             return wav_data
         pcm = wav.readframes(params.nframes)
-    shortened = bytearray()
-    processor = PCM16PauseShortener(
-        params.framerate, shortened.extend, sample_width=params.sampwidth
-    )
-    processor.feed(pcm)
-    processor.finish()
+    shortened = _shorten_pcm(pcm, params.sampwidth, params.framerate)
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setparams(params)

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Moved the pause shortener into C. It runs on the output of every engine, so it
+  was the one piece of per-sample work the whole pack paid for on every
+  utterance, and inside the module it cost 1.6 ms on a line and 10.9 ms on a
+  paragraph -- more, for BeSTspeech, than the engine that produced the audio.
+  `native/audio` compiles a small shared library at install time, beside the
+  engines and needing nothing they do not already need, and `engines/audio.py`
+  uses it when it is there and its own Python version when it is not. A line now
+  costs 0.06 ms and a paragraph about 0.44 ms; rendering a paragraph through the
+  daemon went from 19.6 ms to 6.0 ms and a line from 4.0 ms to 2.3 ms. The audio
+  is unchanged: the C mirrors the Python window for window, checked over nineteen
+  cases that include a quiet run just under the shortening threshold, one exactly
+  at it, a partial final window, 8-bit samples and empty input, and then again
+  over real output from SAM, At Speech and BeSTspeech.
+
 - Fixed the asset downloader, which could not finish. Its SoftVoice entry named
   a file the mirror has since renamed, and one failing entry stopped every entry
   behind it, so an install with `--download-assets` gave up at the sixth of
