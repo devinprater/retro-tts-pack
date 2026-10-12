@@ -41,7 +41,7 @@
           { url = "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/tiger.zip"; sha256 = "681da8c2da2be4161659e4374db3b2cd4b424e86ff2b29f5fa0f886900cd0f3e"; }
           { url = "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/lion.zip"; sha256 = "c6ee230e556bd5722407fdd58e73701ac8a696822c53c919ccf2be6c6e58936c"; }
         ];
-        retro-tts-pack = pkgs.stdenv.mkDerivation {
+        mkRetroTtsPack = lionOnly: pkgs.stdenv.mkDerivation {
           pname = "retro-tts-pack";
           inherit version;
           src = ./.; # The Git flake source preserves the bundled shared libraries.
@@ -73,7 +73,7 @@
             from pathlib import Path
             helpers = runpy.run_path("download-assets.py")
             specs = {item["url"]: item for item in helpers["DOWNLOADS"] if "url" in item}
-            archives = json.loads(r"""${builtins.toJSON (map (asset: { inherit (asset) url; archive = toString asset.archive; }) optionalAssets)}""")
+            archives = json.loads(r"""${builtins.toJSON (map (asset: { inherit (asset) url; archive = toString asset.archive; }) (builtins.filter (asset: !lionOnly || !(builtins.elem asset.url [ "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/tiger.zip" "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/leopard.zip" ])) optionalAssets))}""")
             for item in archives:
                 spec = specs[item["url"]]
                 opener = tarfile.open if spec.get("tar") else zipfile.ZipFile
@@ -88,6 +88,7 @@
             PY_ASSETS
 
             install -m755 assets/panthera/tiger_host bin/panthera_host
+            ${pkgs.lib.optionalString lionOnly "rm -rf assets/tigerspeech assets/leopardspeech; rm -f config/modules/tigerspeech-generic.conf config/modules/leopardspeech-generic.conf"}
             # Entry point: runs install.sh from the store with a python3 that
             # exists on NixOS. install.sh bakes RETRO_TTS_PYTHON into the
             # generated ~/.local/bin/retro-tts wrapper (plain `python3`
@@ -146,10 +147,11 @@
         };
       in
       {
-        packages.default = retro-tts-pack;
+        packages.default = mkRetroTtsPack false;
+        packages.lion-only = mkRetroTtsPack true;
         apps.install = {
           type = "app";
-          program = "${retro-tts-pack}/bin/retro-tts-pack-install";
+          program = "${mkRetroTtsPack false}/bin/retro-tts-pack-install";
         };
       });
 }

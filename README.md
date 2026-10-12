@@ -31,6 +31,14 @@ uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
+## What's new in 1.2.2
+
+- Speech Dispatcher modules now use the names `microsoft-sapi5` and
+  `microsoft-speech-platform` (the standalone installer discovers them with
+  the `-generic` suffix). The engine keys `mssam` and `onecore` remain valid.
+- `nix build .#lion-only` provides a package without Tiger and Leopard data
+  or module configs, while keeping Lion's voice collection.
+
 ## What's new in 1.2.1
 
 - BestSpeech's native wrapper restores the intended pitch and inflection range.
@@ -260,8 +268,8 @@ spd-say -w -o tigerspeech "Vicki is working."
 spd-say -w -o echotalk "Textalker is working."
 spd-say -w -o outspoken "The original MacinTalk is working."
 spd-say -w -o truevoice "Centigram TrueVoice is working."
-spd-say -w -o mssam "Microsoft Sam is working."
-spd-say -w -o onecore "Microsoft David is working."
+spd-say -w -o microsoft-sapi5-generic "Microsoft Sam is working."
+spd-say -w -o microsoft-speech-platform-generic "Microsoft David is working."
 spd-say -w -o lhtts "L and H TTS is working."
 spd-say -w -o lionspeech "Lion Alex is working."
 ```

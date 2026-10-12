@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.2.2 - 2026-10-12
+
+- Rename the Speech Dispatcher modules to microsoft-sapi5 and
+  microsoft-speech-platform, keeping their engine keys and voices unchanged.
+  Module identifiers use hyphens so they remain selectable through SSIP.
+  The installer removes its retired mssam/onecore module configs on upgrade.
+- Add a lion-only Nix package for SoNix and other integrations that want Lion
+  voices without downloading or shipping Tiger and Leopard's duplicate sets.
+  The default Retro TTS package still includes all three Panthera generations.
+
 ## 1.2.1 - 2026-10-12
 
 - The Nix package now builds BestSpeech and the Microsoft SAPI 4, SAPI 5,

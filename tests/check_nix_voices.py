@@ -28,7 +28,13 @@ def check(package):
     count = 0
     with tempfile.TemporaryDirectory(prefix="retro-nix-voice-test-") as temporary:
         for engine in ("tigerspeech", "leopardspeech", "lionspeech", "sapi4", "mssam", "onecore", "bestspeech"):
-            config = (data / "config/modules" / (engine + "-generic.conf")).read_text()
+            module = {"mssam": "microsoft-sapi5", "onecore": "microsoft-speech-platform"}.get(engine, engine)
+            path = data / "config/modules" / (module + "-generic.conf")
+            if engine in ("tigerspeech", "leopardspeech") and not path.exists():
+                assert not (data / "assets" / engine).exists(), engine
+                print(f"{engine}: excluded from this package", flush=True)
+                continue
+            config = path.read_text()
             voices = re.findall(r'^AddVoice "[^"]+" "[^"]+" "([^"]+)"', config, re.MULTILINE)
             # BestSpeech is tested here as a native-build smoke test; its
             # language/personality regression suite is separate.

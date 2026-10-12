@@ -713,8 +713,16 @@ if { [ "$architecture" = x86_64 ] || [ "$architecture" = aarch64 ]; } &&
 else skip_module lionspeech "$APPLE_RUNTIME_NOTE"; fi
 
 for module in $available_modules; do
-    source="$INSTALL_DIR/config/modules/$module-generic.conf"
-    target="$MODULE_DIR/$module-generic.conf"
+    case "$module" in
+        mssam) module_name=microsoft-sapi5 ;;
+        onecore) module_name=microsoft-speech-platform ;;
+        *) module_name=$module ;;
+    esac
+    source="$INSTALL_DIR/config/modules/$module_name-generic.conf"
+    target="$MODULE_DIR/$module_name-generic.conf"
+    if [ "$module_name" != "$module" ]; then
+        rm -f "$MODULE_DIR/$module-generic.conf"
+    fi
     sed "s|retro-tts|$SPEECHD_CLIENT|g" "$source" >"$target"
 done
 
