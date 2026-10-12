@@ -31,6 +31,13 @@ uses a 10 ms PipeWire buffer, and Amiga Narrator streams audio while its 68000
 emulator is running. Wine is required for WinTalker and is only a fallback for
 Leopard Speech when a native host is not present.
 
+## What's new in 1.2.1
+
+- BestSpeech's native wrapper restores the intended pitch and inflection range.
+- The Nix package builds the Microsoft renderers and includes the pinned
+  Panthera and Microsoft voice data needed by downstream integrations.
+- Microsoft Speech Dispatcher configs correctly quote multiword utterances.
+
 ## What's new in 1.2.0
 
 - The Microsoft engines can speak. Sam, Mike and Mary (SAPI 5), David, Zira and

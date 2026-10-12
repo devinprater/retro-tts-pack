@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.1 - 2026-10-12
+
 - The Nix package now builds BestSpeech and the Microsoft SAPI 4, SAPI 5,
   and OneCore renderers, and includes checksum-pinned Microsoft voice data,
   Panthera's native i686 host, and Tiger/Leopard/Lion speech trees. The NixOS
