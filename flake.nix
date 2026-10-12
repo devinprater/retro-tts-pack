@@ -31,12 +31,23 @@
           stdenv.cc.cc.lib
           sqlite # libsqlite3
         ];
+        # Optional Panthera and Microsoft data, pinned to upstream archive hashes.
+        optionalAssets = map (asset: asset // {
+          archive = pkgs.fetchurl { inherit (asset) url sha256; };
+        }) [
+          { url = "https://quintonwilliams.me/sapple/Sapple-1.1.1-mac.zip"; sha256 = "59402650896a33419a80a62ddc36e860812b46d1a28acef511961d2ae5e957b8"; }
+          { url = "https://github.com/tgeczy/panthera-speech/releases/download/pantheraspeech/v3.3.2/panthera-linux-i686-3.3.2.tar.gz"; sha256 = "f7b61d3af84d22f98e4028db62525ca2c0c004dd6ccd5b133dfb7ee5e3a6f6c7"; }
+          { url = "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/leopard.zip"; sha256 = "d830eb0306fbc0044041a71f2eac16412af875aade2ac124b1ae5d30a045c76b"; }
+          { url = "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/tiger.zip"; sha256 = "681da8c2da2be4161659e4374db3b2cd4b424e86ff2b29f5fa0f886900cd0f3e"; }
+          { url = "https://dectalk.nu/Software%20and%20Manuals/Software/Apple/lion.zip"; sha256 = "c6ee230e556bd5722407fdd58e73701ac8a696822c53c919ccf2be6c6e58936c"; }
+        ];
         retro-tts-pack = pkgs.stdenv.mkDerivation {
           pname = "retro-tts-pack";
           inherit version;
-          src = pkgs.lib.cleanSource ./.;
+          src = ./.; # The Git flake source preserves the bundled shared libraries.
 
-          nativeBuildInputs = [ pkgs.patchelf ];
+          nativeBuildInputs = [ pkgs.patchelf pkgs.python3 ];
+          dontBuild = true;
 
           # Prebuilt binaries; stripping foreign-arch objects is not wanted.
           dontStrip = true;
@@ -45,6 +56,38 @@
             runHook preInstall
             mkdir -p $out/share/retro-tts-pack $out/bin
             cp -a . $out/share/retro-tts-pack/
+            cd $out/share/retro-tts-pack
+            OUT="$TMPDIR/openbst" CC=cc sh native/openbst/build.sh
+            install -m755 "$TMPDIR/openbst/bst_cli" bin/bst_cli
+            # Build Microsoft engines from the locked pack source.
+            for engine in sam sapi4 onecore; do
+              OUT="$TMPDIR/$engine" CC=cc sh "native/$engine/build.sh"
+            done
+            install -m755 "$TMPDIR/sam/sam_say" bin/sam_say
+            install -m755 "$TMPDIR/sapi4/sapi4_speak" bin/sapi4_speak
+            install -m755 "$TMPDIR/onecore/zira_say" bin/zira_say
+
+            # Reuse upstream extraction and file verification without networking.
+            ${pkgs.python3}/bin/python3 - <<'PY_ASSETS'
+            import json, runpy, tarfile, zipfile
+            from pathlib import Path
+            helpers = runpy.run_path("download-assets.py")
+            specs = {item["url"]: item for item in helpers["DOWNLOADS"] if "url" in item}
+            archives = json.loads(r"""${builtins.toJSON (map (asset: { inherit (asset) url; archive = toString asset.archive; }) optionalAssets)}""")
+            for item in archives:
+                spec = specs[item["url"]]
+                opener = tarfile.open if spec.get("tar") else zipfile.ZipFile
+                with opener(item["archive"]) as archive:
+                    if "files" in spec:
+                        for member, (relative, checksum) in spec["files"].items():
+                            helpers["install_file"](Path("assets") / relative,
+                                helpers["member_bytes"](archive, member), checksum)
+                    else:
+                        candidates, relative = spec["tree_candidates"]
+                        helpers["install_tree_candidates"](archive, candidates, Path("assets") / relative)
+            PY_ASSETS
+
+            install -m755 assets/panthera/tiger_host bin/panthera_host
             # Entry point: runs install.sh from the store with a python3 that
             # exists on NixOS. install.sh bakes RETRO_TTS_PYTHON into the
             # generated ~/.local/bin/retro-tts wrapper (plain `python3`
@@ -52,7 +95,7 @@
             cat > $out/bin/retro-tts-pack-install <<WRAPPER
             #!${pkgs.runtimeShell}
             export RETRO_TTS_PYTHON=${pkgs.python3}/bin/python3
-            exec $out/share/retro-tts-pack/install.sh "$@"
+            exec $out/share/retro-tts-pack/install.sh "\$@"
             WRAPPER
             chmod +x $out/bin/retro-tts-pack-install
             runHook postInstall
@@ -90,7 +133,7 @@
                   patchelf --set-rpath "$libpath" "$f"
                 fi
               fi
-            done || true
+            done
           '';
 
           meta = with pkgs.lib; {
