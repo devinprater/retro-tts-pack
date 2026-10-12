@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- The Nix package now builds BestSpeech and the Microsoft SAPI 4, SAPI 5,
+  and OneCore renderers, and includes checksum-pinned Microsoft voice data,
+  Panthera's native i686 host, and Tiger/Leopard/Lion speech trees. The NixOS
+  ELF fixup covers the downloaded host as well as the prebuilt binaries.
+  Downstream systems can consume these engines without running install.sh.
+- Fixed excess quote escaping in the Microsoft Speech Dispatcher configs so
+  multiword utterances reach the engine as a single text argument.
+
 - Fixed BestSpeech's lower, flatter pitch after the native-engine migration.
   Convert voice inflection presets to the absolute upper frequency expected
   by openbst, preserving their relation to the selected pitch. Fred's default

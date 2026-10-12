@@ -102,6 +102,18 @@ nix run github:devinprater/retro-tts-pack#install
 or install it into your profile and run `retro-tts-pack-install`. The flake
 honours the same `install.sh` options, e.g. `--download-assets`.
 
+The Nix package builds the BestSpeech, SAPI 4, SAPI 5 and OneCore renderers
+and includes checksum-pinned Microsoft voice data, the native Panthera host,
+and Tiger/Leopard/Lion speech trees. These downloads happen through Nix when
+building or installing the package. Other optional assets still use
+`--download-assets`.
+
+Downstream NixOS integrations can use the engines and data under
+`share/retro-tts-pack` directly. Their runtime wrappers must set the
+`RETRO_TTS_*` paths shown in `install.sh`, and register the corresponding
+Speech Dispatcher modules; importing the flake alone does not change a
+system's speech configuration.
+
 To download the checksum-pinned Prose 2000 files published in that project's
 GitHub release:
 
