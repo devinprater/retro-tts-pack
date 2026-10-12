@@ -77,6 +77,7 @@ def text_to_wav(
     # fastest. The previous -20..20 mapping covered very little of it.
     native_rate = round(200 - max(0, min(100, rate)) * 2.9)
     effective_pitch = _character_pitch(text, pitch)
+    native_pitch = _native_pitch(effective_pitch)
     requested = (voice or "fred").lower()
     if " - " in requested:
         language_name, personality_name = requested.split(" - ", 1)
@@ -88,6 +89,10 @@ def text_to_wav(
         language, personality = "classic", language
     build, codepage = _BUILDS.get(language, _BUILDS["classic"])
     head, excitation, inflection, unvoiced = _VOICES.get(personality, _VOICES["fred"])
+    # The old ~h escape is an offset from twice the base pitch, whereas
+    # bst_cli's --top is an absolute frequency. Fred's ~h0 means 160 Hz at
+    # the default 80 Hz base, not a zero-frequency upper contour.
+    native_top = max(43, min(600, (inflection + 200) * native_pitch // 100))
     # The presets are the engine's own escape parameters, which openbst carries
     # as settings: ~e wrote its value times sixteen and ~u its value less
     # eighteen, each falling back to its own default when out of range.
@@ -102,8 +107,8 @@ def text_to_wav(
             [
                 str(executable.resolve()), "--build", build,
                 "--voice", str(head), "--rate", str(native_rate),
-                "--pitch", str(_native_pitch(effective_pitch)),
-                "--top", str(inflection), "--exc", str(exc),
+                "--pitch", str(native_pitch),
+                "--top", str(native_top), "--exc", str(exc),
                 "--unvoiced", str(gain),
                 # The 1995 build already comes out at the newer NVDA language
                 # profile's +12 dB and the 2006 ones do not, so only the
