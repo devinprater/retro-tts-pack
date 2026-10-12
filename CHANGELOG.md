@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fixed BestSpeech's lower, flatter pitch after the native-engine migration.
+  Convert voice inflection presets to the absolute upper frequency expected
+  by openbst, preserving their relation to the selected pitch. Fred's default
+  upper contour is 160 Hz rather than zero. Native output can still differ
+  from the former DLL engine.
+
 ## 1.2.0 - 2026-10-10
 
 - Added SAPI 4, Microsoft's 1999 engine, with its nineteen voice modes. The
